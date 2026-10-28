@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0F3D33">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<title>Proveedores y pagos</title>
+<script src="config.js"></script>
+<script>
+// Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
+(function(){
+  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
+  function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
+  function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
+  function guardar(k, v){
+    try { localStorage.setItem(k, JSON.stringify(v)); }
+    catch (e) { try { Object.keys(localStorage).forEach(function(x){ if (x.indexOf('favorita_c_') === 0) localStorage.removeItem(x); }); localStorage.setItem(k, JSON.stringify(v)); } catch (e2) {} }
+  }
+  function aviso(){
+    if (document.getElementById('pt-aviso')) return;
+    var d = document.createElement('div'); d.id = 'pt-aviso';
+    d.textContent = '📴 Sin internet: está viendo lo último que se cargó';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:10px;z-index:99999;background:#9B2C22;color:#fff;font:600 15px Arial,sans-serif;padding:10px 12px;border-radius:12px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)';
+    (document.body || document.documentElement).appendChild(d);
+    setTimeout(function(){ d.remove(); }, 5000);
+  }
+  function llamar(fn, args, ok, mal){
+    var lect = fn === 'api' && LECT.indexOf(args[1]) >= 0, k = lect ? clave(args) : '', viejo = lect ? leer(k) : undefined;
+    function falla(m){ if (mal) mal(new Error(m)); }
+    function sinSenal(){
+      if (viejo !== undefined) { aviso(); if (ok) ok(viejo); return; }
+      falla('Failed to fetch: sin conexión');
+    }
+    if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
+    if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
+    fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
+      .then(function(r){ return r.text(); })
+      .then(function(tx){
+        clearTimeout(t);
+        var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
+        if (!j.ok) { falla(j.err || 'Error'); return; }
+        if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (ok) ok(j.r);
+      })
+      .catch(function(){ clearTimeout(t); sinSenal(); });
+  }
+  function runner(ok, mal){
+    return new Proxy({}, { get: function(_, k){
+      if (k === 'withSuccessHandler') return function(f){ return runner(f, mal); };
+      if (k === 'withFailureHandler') return function(f){ return runner(ok, f); };
+      if (k === 'withUserObject') return function(){ return runner(ok, mal); };
+      return function(){ llamar(k, [].slice.call(arguments), ok, mal); };
+    }});
+  }
+  function lugar(){
+    var p = {}, ps = {};
+    new URLSearchParams(location.search).forEach(function(v, k){ if (!(k in p)) p[k] = v; (ps[k] = ps[k] || []).push(v); });
+    return { parameter: p, parameters: ps, hash: location.hash.replace(/^#/, '') };
+  }
+  window.google = { script: { run: runner(null, null), url: { getLocation: function(cb){ setTimeout(function(){ cb(lugar()); }, 0); } } } };
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+})();
+</script>
+
+<style>
+  body{font-family:Arial,sans-serif;background:#f4f1e8;margin:0;padding:16px 16px 40px;color:#1b1b1b;font-size:20px}
+  h1{font-size:30px;margin:4px 0 10px}
+  h2{font-size:24px;margin:28px 0 10px}
+  label{display:block;font-weight:bold;margin:18px 0 6px;font-size:22px}
+  .ayuda{display:block;font-weight:normal;font-size:16px;color:#555}
+  input,textarea{width:100%;box-sizing:border-box;font-size:30px;padding:14px;border:3px solid #999;border-radius:12px;background:#fff}
+  input:focus,textarea:focus{border-color:#0b6b52;outline:none}
+  textarea{font-size:20px}
+  button{width:100%;font-size:30px;font-weight:bold;padding:22px;border:0;border-radius:14px;background:#e8a317;color:#000;margin-top:20px}
+  button:disabled{opacity:.5}
+  [hidden]{display:none!important}
+  .cajas{display:flex;gap:10px}
+  .cajas div{flex:1;border-radius:14px;padding:12px;text-align:center;font-size:16px;color:#fff}
+  .cajas b{display:block;font-size:28px;margin-top:2px}
+  .c1{background:#1d4e89}.c2{background:#5a3e8c}
+  .tipos{display:flex;gap:10px;margin-top:16px}
+  .tipos button{flex:1;margin:0;font-size:21px;padding:18px;background:#fff;border:3px solid #999;color:#1b1b1b}
+  .tipos button.on{background:#1d4e89;border-color:#1d4e89;color:#fff}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chips button{flex:1 1 140px;margin:0;font-size:19px;padding:14px 10px;background:#fff;border:3px solid #999;color:#1b1b1b}
+  .chips button.on{background:#0b6b52;border-color:#0b6b52;color:#fff}
+  .aviso{background:#fff3cd;border-radius:12px;padding:10px 12px;margin-top:12px;font-size:18px}
+  .wa{display:block;text-align:center;background:#25D366;color:#fff;font-size:24px;font-weight:bold;padding:18px;border-radius:14px;margin-top:10px;text-decoration:none}
+  #msg{font-size:22px;text-align:center;margin:16px 0;font-weight:bold}
+  .ok{color:#0b6b52}.err{color:#b3261e}
+  .dia{font-weight:bold;font-size:20px;margin:16px 0 8px;display:flex;justify-content:space-between}
+  .dia.atrasado{color:#b3261e}
+  .item{background:#fff;border:2px solid #e3dccb;border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .item .fila{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .item .q{min-width:0;flex:1}
+  .item .n{font-weight:bold;font-size:20px;overflow-wrap:anywhere}
+  .item .s{font-size:16px;color:#555;overflow-wrap:anywhere}
+  .item .v{font-weight:bold;font-size:22px;white-space:nowrap}
+  .acc{display:flex;gap:8px;margin-top:10px}
+  .acc button{margin:0;font-size:18px;padding:12px;border-radius:10px}
+  .acc .pagar{background:#0b6b52;color:#fff;flex:2}
+  .acc .cancel{background:#fff;border:2px solid #b3261e;color:#b3261e;flex:1}
+  .vacio{text-align:center;color:#555;font-size:18px;padding:12px}
+</style>
+</head>
+<body>
+<style>
+  .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
+  .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
+  .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
+  #cm-gate{position:fixed;inset:0;z-index:999;background:#0F3D33;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;font-family:Arial,sans-serif}
+  #cm-gate .m{color:#C9A54B;font-size:13px;letter-spacing:3px;font-weight:bold}
+  #cm-gate h2{margin:6px 0 18px;font-size:24px}
+  #cm-puntos{display:flex;gap:14px;margin-bottom:10px}
+  #cm-puntos i{width:18px;height:18px;border-radius:50%;border:2px solid #C9A54B}
+  #cm-puntos i.on{background:#C9A54B}
+  #cm-err{min-height:22px;color:#ffb4a8;font-weight:bold;margin-bottom:8px;text-align:center}
+  .cm-teclas{display:grid;grid-template-columns:repeat(3,78px);gap:12px}
+  .cm-teclas button{height:68px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:28px;font-weight:bold;cursor:pointer}
+  .cm-teclas button:active{background:rgba(201,165,75,.6)}
+  .cm-teclas .x{font-size:18px;background:transparent}
+  #cm-no{position:fixed;inset:0;z-index:998;background:#F3F1EA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font:20px Arial,sans-serif;text-align:center;padding:20px}
+  [hidden]{display:none!important}
+  #cm-cola{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:998;background:#1b1b1b;color:#fff;font:bold 15px Arial,sans-serif;padding:10px 16px;border-radius:24px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:92vw;text-align:center}
+  #cm-cola.sin{background:#9B2C22}
+</style>
+<div id="cm-cola" hidden></div>
+<div class="cm-barra" id="cm-barra" hidden>
+  <a class="cm-volver" id="cm-volver" href="./" target="_top">⬅ Inicio</a>
+  <span class="cm-quien" id="cm-quien"></span>
+</div>
+<div id="cm-gate" hidden>
+  <div class="m">TIENDA LA FAVORITA</div>
+  <h2>Escriba su clave</h2>
+  <div id="cm-puntos"><i></i><i></i><i></i><i></i></div>
+  <div id="cm-err"></div>
+  <div class="cm-teclas">
+    <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+    <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+    <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+    <button type="button" class="x" data-k="borrar">Borrar</button><button type="button">0</button><span></span>
+  </div>
+</div>
+<div id="cm-no" hidden>
+  <div>🔒 Esta clave no tiene acceso a esta pantalla.</div>
+  <a class="cm-volver" href="./" target="_top">⬅ Ir al inicio</a>
+</div>
+<script>
+var URL_APP = './', PIN = '', ROL = null;
+var EQUIPO = 'x';
+try { PIN = localStorage.getItem('favorita_pin') || ''; } catch (e) {}
+try {
+  EQUIPO = localStorage.getItem('favorita_equipo') || '';
+  if (!EQUIPO) { EQUIPO = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); localStorage.setItem('favorita_equipo', EQUIPO); }
+} catch (e) { EQUIPO = 'x'; }
+function llaveQR(){ return (ROL && ROL.llave) || '@jemsh6074'; }
+function conEquipo(p){ return p ? p + '#' + EQUIPO : ''; }
+function cmG(id){ return document.getElementById(id); }
+// Dentro de la PWA (app instalada): los enlaces entre pantallas se abren dentro de la misma app
+var PWA = '0' === '1';
+if (PWA) document.addEventListener('click', function(ev){
+  var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+  if (!a || a.target === '_blank') return;
+  var h = a.getAttribute('href') || '';
+  if (h.indexOf(URL_APP) !== 0) return;
+  ev.preventDefault();
+  try { window.top.postMessage({ favorita: 'ir', q: h.slice(URL_APP.length) }, '*'); } catch (e) {}
+}, true);
+// Mensajes de WhatsApp: primer nombre bonito ("JHONATAN PEREZ" -> "Jhonatan")
+function nomCorto(n){ var p = String(n || '').trim().split(/\s+/)[0] || ''; return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase(); }
+function saludoWa(n){ return '¡Hola' + (n ? ' ' + nomCorto(n) : '') + '! 👋 Le saluda *Tienda La Favorita* 🐔✨'; }
+var GRACIAS_WA = '¡Gracias por seguir prefiriéndonos! 🙏💛';
+// Línea para pagar desde la casa: llave Bre-B + página con el QR
+function pagoWa(n, v){
+  return '📲 *Puede pagar desde su casa:*\n🔑 Llave Bre-B: *' + llaveQR() + '*\n🧾 Nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0);
+}
+function msgAbono(nombre, valor, medio, saldo, fecha){
+  var f = String(fecha || '').split('-');
+  return saludoWa(nombre) + '\n\nRecibimos su abono, ¡muchas gracias! 🙌\n' + (f.length === 3 ? '📅 ' + f[2] + '/' + f[1] + '/' + f[0] + '\n' : '') +
+    '💵 Abono: *$' + sep(valor) + '* (' + medio + ')\n' +
+    (saldo > 0 ? '💰 Le queda pendiente: *$' + sep(saldo) + '*' : '🎉 ¡Quedó a paz y salvo! Su cuenta está en cero.') +
+    '\n\n' + GRACIAS_WA;
+}
+function guardarPin(p){ PIN = p; try { localStorage.setItem('favorita_pin', p); } catch (e) {} }
+function salir(){ try { localStorage.removeItem('favorita_pin'); localStorage.removeItem('favorita_rol'); localStorage.removeItem('favorita_inicio'); } catch (e) {} PIN = ''; }
+// ----- Sin internet: lo que se guarda queda en el celular y se manda solo cuando vuelve la señal -----
+var COLA_FN = { guardarCuadre: 1, guardarMov: 1, guardarPago: 1 }, ENVIANDO = false, OK_HASTA = 0;
+function sinRed(e){ return !navigator.onLine || /NetworkError|HTTP 0|network|Failed to fetch|conexi[oó]n/i.test((e && e.message) || ''); }
+function leerCola(){ try { return JSON.parse(localStorage.getItem('favorita_cola') || '[]'); } catch (e) { return []; } }
+function escribirCola(c){ try { localStorage.setItem('favorita_cola', JSON.stringify(c)); } catch (e) {} pintarCola(); }
+function aCola(fn, args){
+  var a = args[0], h = new Date();
+  a.hora = ('0' + h.getHours()).slice(-2) + ':' + ('0' + h.getMinutes()).slice(-2) + ':' + ('0' + h.getSeconds()).slice(-2);
+  OK_HASTA = 0;
+  var c = leerCola(); c.push({ fn: fn, args: args, k: a._k }); escribirCola(c);
+}
+function pintarCola(){
+  var el = cmG('cm-cola'); if (!el || Date.now() < OK_HASTA) return;
+  var n = leerCola().length, sin = !navigator.onLine;
+  el.hidden = !n && !sin;
+  el.className = sin ? 'sin' : '';
+  var cosas = n + (n === 1 ? ' cosa' : ' cosas');
+  el.textContent = sin ? '📴 Sin internet' + (n ? ' · ' + cosas + ' por enviar. No cierre la app' : '')
+    : ENVIANDO ? '⏳ Enviando ' + cosas + ' guardadas sin internet...' : '⏳ ' + cosas + ' por enviar · se reintenta sola';
+}
+function enviarCola(){
+  pintarCola();
+  if (ENVIANDO || !navigator.onLine || !PIN) return;
+  var c = leerCola(); if (!c.length) return;
+  var it = c[0]; ENVIANDO = true; pintarCola();
+  google.script.run.withSuccessHandler(function(){
+    ENVIANDO = false;
+    escribirCola(leerCola().filter(function(x){ return x.k !== it.k; }));
+    if (!leerCola().length) { var el = cmG('cm-cola'); el.hidden = false; el.className = ''; el.textContent = '✅ Ya se envió todo lo guardado sin internet'; OK_HASTA = Date.now() + 4000; setTimeout(pintarCola, 4100); return; }
+    enviarCola();
+  }).withFailureHandler(function(e){
+    ENVIANDO = false;
+    if (sinRed(e) || /Clave|intentos/.test(e.message || '')) { pintarCola(); return; }   // se reintenta después
+    escribirCola(leerCola().filter(function(x){ return x.k !== it.k; }));
+    alert('No se pudo enviar algo guardado sin internet (' + it.fn + ' ' + JSON.stringify(it.args[0]).slice(0, 120) + '): ' + e.message + '. Anótelo de nuevo.');
+    enviarCola();
+  }).api(conEquipo(PIN), it.fn, it.args);
+}
+window.addEventListener('online', enviarCola);
+window.addEventListener('offline', function(){ OK_HASTA = 0; pintarCola(); });
+setInterval(enviarCola, 20000);
+setTimeout(enviarCola, 1500);
+
+// Igual que google.script.run, pero pasa la clave al servidor
+function srv(){
+  var ok = null, mal = null;
+  var o = { withSuccessHandler: function(f){ ok = f; return p; }, withFailureHandler: function(f){ mal = f; return p; } };
+  var p = new Proxy(o, { get: function(t, k){
+    if (k in t) return t[k];
+    return function(){
+      var args = [].slice.call(arguments), cola = COLA_FN[k] && args[0] && typeof args[0] === 'object';
+      if (cola && !args[0]._k) args[0]._k = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      var guardarSinRed = function(){
+        aCola(k, args);
+        if (mal) mal({ cola: true, message: '📴 Sin internet: quedó guardado en el celular y se envía solo cuando vuelva la señal. No cierre la app.' });
+      };
+      if (cola && !navigator.onLine) { guardarSinRed(); return; }
+      var r = google.script.run;
+      if (ok) r = r.withSuccessHandler(ok);
+      r = r.withFailureHandler(function(e){
+        if (cola && sinRed(e)) { guardarSinRed(); return; }
+        if (/Clave incorrecta/.test(e.message)) salir();
+        if (mal) mal(e);
+      });
+      r.api(conEquipo(PIN), k, args);
+    };
+  }});
+  return p;
+}
+function mostrar(r, fn){
+  ROL = r;
+  cmG('cm-gate').hidden = true;
+  if (r.paginas.indexOf(PAGINA) < 0) { cmG('cm-no').hidden = false; return false; }
+  cmG('cm-no').hidden = true;
+  cmG('cm-barra').hidden = false;
+  cmG('cm-volver').hidden = PAGINA === 'inicio';
+  cmG('cm-quien').textContent = '🔓 ' + r.nombre;
+  if (fn) fn();
+  return true;
+}
+function iniciar(fn){
+  if (!PIN) { pedirClave(fn); return; }
+  var guardado = null;
+  try { guardado = JSON.parse(localStorage.getItem('favorita_rol') || 'null'); } catch (e) {}
+  // Si ya se conoce la clave, la pantalla arranca de una vez y se verifica al mismo tiempo
+  var ya = guardado ? mostrar(guardado, fn) : false;
+  google.script.run.withSuccessHandler(function(r){
+    if (r && r.bloqueado) { salir(); pedirClave(fn, '⛔ Demasiados intentos. Espere ' + r.bloqueado + ' min.'); return; }
+    if (!r) { salir(); pedirClave(fn, 'La clave cambió. Escríbala de nuevo.'); return; }
+    try { localStorage.setItem('favorita_rol', JSON.stringify(r)); } catch (e) {}
+    if (!guardado) mostrar(r, fn);
+    else if (JSON.stringify(guardado) !== JSON.stringify(r)) mostrar(r, ya ? null : fn);   // si con lo guardado no podía entrar y ahora sí, carga
+  }).withFailureHandler(function(e){
+    if (!guardado) pedirClave(fn, 'Sin conexión. Intente otra vez.');
+  }).api(conEquipo(PIN), 'rol', []);
+}
+function pedirClave(fn, aviso){
+  var g = cmG('cm-gate'), dig = '';
+  g.hidden = false; cmG('cm-err').textContent = aviso || '';
+  var puntos = cmG('cm-puntos').children;
+  function pintar(){ for (var i = 0; i < 4; i++) puntos[i].className = i < dig.length ? 'on' : ''; }
+  pintar();
+  g.querySelectorAll('.cm-teclas button').forEach(function(b){
+    b.onclick = function(){
+      if (b.getAttribute('data-k') === 'borrar') { dig = dig.slice(0, -1); pintar(); return; }
+      if (dig.length >= 4) return;
+      dig += b.textContent; pintar(); cmG('cm-err').textContent = '';
+      if (dig.length === 4) {
+        cmG('cm-err').textContent = 'Revisando...';
+        google.script.run.withSuccessHandler(function(r){
+          if (r && r.bloqueado) { dig = ''; pintar(); cmG('cm-err').textContent = '⛔ Demasiados intentos. Espere ' + r.bloqueado + ' min.'; return; }
+          if (!r) { dig = ''; pintar(); cmG('cm-err').textContent = 'Clave incorrecta'; return; }
+          guardarPin(dig); iniciar(fn);
+        }).withFailureHandler(function(){ dig = ''; pintar(); cmG('cm-err').textContent = 'Sin conexión. Intente otra vez.'; })
+          .api(conEquipo(dig), 'rol', []);
+      }
+    };
+  });
+}
+</script>
+
+<h1>Proveedores y pagos</h1>
+
+<div class="cajas">
+  <div class="c1">Pagar hoy<b id="cHoy">$0</b></div>
+  <div class="c2">Próximos 7 días<b id="cSemana">$0</b></div>
+</div>
+
+<div class="ayuda" style="margin:4px 0 10px">📦 Anote aquí los pedidos. Para pagarlos toque <b>✅ Llegó, pagar</b> en el pedido. Gastos y facturas (luz, agua...) se anotan en el <b>Cuadre</b>.</div>
+
+<!-- ===== NUEVO PEDIDO ===== -->
+<div id="fPedido">
+  <label for="pProv">🚚 Proveedor</label>
+  <input id="pProv" list="provs" autocomplete="off">
+  <label for="pTel">📞 Celular del proveedor<span class="ayuda">Opcional, para confirmarle el pedido por WhatsApp</span></label>
+  <input id="pTel" type="tel" inputmode="tel" autocomplete="off">
+  <label for="pLlega">📅 Día que llega el pedido</label>
+  <input type="date" id="pLlega">
+  <label for="pValor">💵 Cuánto hay que pagarle</label>
+  <input id="pValor" inputmode="numeric" autocomplete="off">
+  <label for="pDet">📝 Qué pidió<span class="ayuda">Ejemplo: 10 pacas de arroz, 5 cajas de aceite</span></label>
+  <textarea id="pDet" rows="2"></textarea>
+  <button id="btnPedido" onclick="guardarPedido()">GUARDAR PEDIDO</button>
+</div>
+
+<!-- ===== PAGO O FACTURA ===== -->
+<div id="fPago" hidden>
+  <div class="aviso" id="avisoPedido" hidden></div>
+  <label>📂 Qué se pagó</label>
+  <div class="chips" id="tiposPago">
+    <button type="button" class="on" data-v="Compra mercancía">🛒 Mercancía</button>
+    <button type="button" data-v="Factura servicio">🧾 Factura (luz, agua...)</button>
+    <button type="button" data-v="Otro gasto">📌 Otro gasto</button>
+  </div>
+  <label for="gQuien">👤 A quién o qué<span class="ayuda">Proveedor, empresa o concepto</span></label>
+  <input id="gQuien" list="provs" autocomplete="off">
+  <label for="gValor">💵 Valor pagado</label>
+  <input id="gValor" inputmode="numeric" autocomplete="off">
+  <label>💳 De dónde salió la plata</label>
+  <div class="chips" id="mediosPago">
+    <button type="button" class="on" data-v="Caja">💵 De la caja</button>
+    <button type="button" data-v="Transferencia">🏦 Transferencia</button>
+    <button type="button" data-v="Otro">👤 Otro (Jems)</button>
+  </div>
+  <div class="ayuda" style="margin-top:6px">Solo lo pagado <b>de la caja</b> entra al cuadre del día.</div>
+  <label for="gFecha">📅 Fecha del pago</label>
+  <input type="date" id="gFecha" onchange="cargar()">
+  <label for="gNota">✏️ Nota<span class="ayuda">Ejemplo: factura #1234</span></label>
+  <textarea id="gNota" rows="2"></textarea>
+  <button id="btnPago" onclick="guardarPago()">GUARDAR PAGO</button>
+  <button type="button" class="ver" style="width:100%;margin-top:8px;background:none;border:0;color:#666;font-size:15px;padding:10px" onclick="setModo('pedido')">⬅ No pagar ahora, volver</button>
+</div>
+
+<a id="wa" class="wa" target="_blank" rel="noopener" hidden>📲 Confirmar pedido al proveedor</a>
+<div id="msg"></div>
+
+<h2>📅 Pedidos por llegar</h2>
+<div id="pend"></div>
+
+<h2>💸 Pagos del día</h2>
+<div id="pagos"></div>
+
+<datalist id="provs"></datalist>
+
+<script>
+var PAGINA = 'proveedores';
+var modo = 'pedido', tipoPago = 'Compra mercancía', medioPago = 'Caja', pedidoId = '', PROVS = {};
+function $(id){ return document.getElementById(id); }
+function num(x){ return typeof x === 'number' ? x : (Number(String(x || '').replace(/\D/g, '')) || 0); }
+function sep(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+function fmt(n){ return '$' + sep(n); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function msg(t, c){ $('msg').textContent = t; $('msg').className = c || ''; }
+function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function hoy(){ return ymd(new Date()); }
+function sumarDias(f, n){ var p = f.split('-'); return ymd(new Date(p[0], p[1] - 1, +p[2] + n)); }
+function fechaBonita(f){ var p = f.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function nombreDia(f){
+  var h = hoy();
+  if (f === h) return 'Hoy';
+  if (f === sumarDias(h, 1)) return 'Mañana';
+  var p = f.split('-'), d = new Date(p[0], p[1] - 1, p[2]);
+  var dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  return dias[d.getDay()] + ' ' + fechaBonita(f);
+}
+function waLink(tel, texto){
+  var n = String(tel || '').replace(/\D/g, '');
+  if (n.length === 10) n = '57' + n;
+  return 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto);
+}
+function chips(id, fn){
+  document.querySelectorAll('#' + id + ' button').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('#' + id + ' button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on'); fn(b.getAttribute('data-v'));
+    });
+  });
+}
+function marcar(id, v){
+  document.querySelectorAll('#' + id + ' button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-v') === v); });
+}
+chips('tiposPago', function(v){ tipoPago = v; });
+chips('mediosPago', function(v){ medioPago = v; });
+['pValor','gValor'].forEach(function(id){
+  $(id).addEventListener('input', function(){ var n = num($(id).value); $(id).value = n ? sep(n) : ''; });
+});
+$('pProv').addEventListener('input', function(){
+  var t = PROVS[$('pProv').value.trim().toUpperCase()];
+  if (t && !$('pTel').value) $('pTel').value = t;
+});
+
+function setModo(m){
+  modo = m;
+  document.querySelectorAll('.tipos button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-t') === m); });
+  $('fPedido').hidden = m !== 'pedido';
+  $('fPago').hidden = m !== 'pago';
+  $('wa').hidden = true; msg('');
+  if (m === 'pedido') { pedidoId = ''; $('avisoPedido').hidden = true; }
+}
+document.querySelectorAll('.tipos button').forEach(function(b){
+  b.addEventListener('click', function(){ setModo(b.getAttribute('data-t')); });
+});
+
+function pintar(r){
+  PROVS = {};
+  r.provs.forEach(function(p){ PROVS[p.n] = p.tel; });
+  $('provs').innerHTML = r.provs.map(function(p){ return '<option value="' + esc(p.n) + '">'; }).join('');
+
+  var h = hoy(), semana = sumarDias(h, 7), tHoy = 0, tSem = 0;
+  r.pendientes.forEach(function(p){
+    if (p.llega <= h) tHoy += p.valor;
+    if (p.llega <= semana) tSem += p.valor;
+  });
+  $('cHoy').textContent = fmt(tHoy);
+  $('cSemana').textContent = fmt(tSem);
+
+  if (!r.pendientes.length) {
+    $('pend').innerHTML = '<div class="vacio">No hay pedidos pendientes</div>';
+  } else {
+    var html = '', dia = null, grupo = [];
+    function cerrar(){
+      if (dia === null) return;
+      var tot = grupo.reduce(function(s, p){ return s + p.valor; }, 0);
+      var atras = dia < h;
+      html += '<div class="dia' + (atras ? ' atrasado' : '') + '"><span>' + (atras ? '⚠️ Atrasado · ' : '') + esc(nombreDia(dia)) +
+        '</span><span>' + fmt(tot) + '</span></div>';
+      grupo.forEach(function(p){
+        html += '<div class="item"><div class="fila"><div class="q"><div class="n">🚚 ' + esc(p.prov) + '</div><div class="s">' +
+          esc(p.detalle || 'Sin detalle') + '</div></div><div class="v">' + fmt(p.valor) + '</div></div>' +
+          '<div class="acc"><button class="pagar" data-id="' + esc(p.id) + '">✅ Llegó, pagar</button>' +
+          '<button class="cancel" data-c="' + esc(p.id) + '">Cancelar</button></div></div>';
+      });
+    }
+    r.pendientes.forEach(function(p){
+      if (p.llega !== dia) { cerrar(); dia = p.llega; grupo = []; }
+      grupo.push(p);
+    });
+    cerrar();
+    $('pend').innerHTML = html;
+    document.querySelectorAll('#pend .pagar').forEach(function(b){
+      b.addEventListener('click', function(){
+        var p = r.pendientes.filter(function(x){ return x.id === b.getAttribute('data-id'); })[0];
+        if (p) pagarPedido(p);
+      });
+    });
+    document.querySelectorAll('#pend .cancel').forEach(function(b){
+      b.addEventListener('click', function(){ pedirCancelar(b, b.getAttribute('data-c')); });
+    });
+  }
+
+  $('pagos').innerHTML = r.pagos.length
+    ? r.pagos.map(function(g){
+        return '<div class="item"><div class="fila"><div class="q"><div class="n">' + esc(g.quien) + '</div><div class="s">' +
+          esc(g.hora) + ' · ' + esc(g.tipo) + ' · ' + (g.medio === 'Caja' ? 'De la caja' : esc(g.medio)) +
+          (g.nota ? ' · ' + esc(g.nota) : '') + '</div></div><div class="v">' + fmt(g.valor) + '</div></div>' +
+          '<div class="acc"><button class="cancel borrp" data-i="' + r.pagos.indexOf(g) + '">🗑️ Borrar este pago</button></div></div>';
+      }).join('') + '<div class="dia"><span>Total pagado</span><span>' + fmt(r.pagosTotal) + '</span></div>' +
+        '<div class="dia" style="font-size:17px;color:#555"><span>De eso, salió de la caja</span><span>' + fmt(r.pagosCaja) + '</span></div>'
+    : '<div class="vacio">No hay pagos este día</div>';
+  // Borrar un pago mal anotado (hay que tocar dos veces)
+  document.querySelectorAll('#pagos .borrp').forEach(function(b){
+    b.addEventListener('click', function(){
+      var g = r.pagos[+b.getAttribute('data-i')];
+      if (!b.getAttribute('data-ok')) { b.setAttribute('data-ok', '1'); b.textContent = '¿Seguro? Tocar otra vez'; return; }
+      b.disabled = true;
+      srv().withSuccessHandler(function(x){ pintar(x); msg('🗑️ Se borró el pago a ' + g.quien + ' por ' + fmt(g.valor) + (g.pedido ? '. El pedido volvió a quedar pendiente.' : ''), 'ok'); })
+        .withFailureHandler(function(e){ b.disabled = false; msg('No se borró: ' + e.message, 'err'); })
+        .borrarPago({ fila: g.fila, t: g.t, valor: g.valor, fecha: $('gFecha').value });
+    });
+  });
+}
+
+function pagarPedido(p){
+  setModo('pago');
+  pedidoId = p.id;
+  tipoPago = 'Compra mercancía'; marcar('tiposPago', tipoPago);
+  $('gQuien').value = p.prov;
+  $('gValor').value = sep(p.valor);
+  $('gNota').value = p.detalle || '';
+  $('avisoPedido').textContent = '📦 Pagando pedido de ' + p.prov + '. Si el valor cambió, corríjalo antes de guardar.';
+  $('avisoPedido').hidden = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function pedirCancelar(b, id){
+  if (b.getAttribute('data-ok')) {
+    b.disabled = true;
+    srv().withSuccessHandler(function(r){ pintar(r); msg('Pedido cancelado', 'ok'); })
+      .withFailureHandler(function(e){ msg('Error: ' + e.message, 'err'); })
+      .cancelarPedido(id, $('gFecha').value);
+  } else {
+    b.setAttribute('data-ok', '1'); b.textContent = '¿Seguro? Tocar otra vez';
+  }
+}
+
+function cargar(){
+  srv().withSuccessHandler(pintar)
+    .withFailureHandler(function(e){ msg('Error: ' + e.message, 'err'); })
+    .proveedores($('gFecha').value);
+}
+
+function guardarPedido(){
+  var d = { prov: $('pProv').value.trim(), tel: $('pTel').value.trim(), llega: $('pLlega').value,
+            valor: num($('pValor').value), detalle: $('pDet').value.trim(), hoy: $('gFecha').value };
+  if (!d.prov) { msg('Escriba el proveedor', 'err'); $('pProv').focus(); return; }
+  if (!d.llega) { msg('Escoja el día que llega', 'err'); return; }
+  if (!d.valor) { msg('Escriba cuánto hay que pagar', 'err'); $('pValor').focus(); return; }
+  $('btnPedido').disabled = true; msg('Guardando...');
+  srv().withSuccessHandler(function(r){
+    $('btnPedido').disabled = false;
+    pintar(r);
+    msg('✅ Pedido de ' + d.prov.toUpperCase() + ' guardado para el ' + nombreDia(d.llega).toLowerCase(), 'ok');
+    var tel = d.tel || PROVS[d.prov.toUpperCase()];
+    if (tel) {
+      var t = '¡Hola! 👋 Le saluda *Tienda La Favorita* 🐔✨\n\nLe confirmo el pedido 📝\n📦 ' + (d.detalle || '(sin detalle)') + '\n📅 Llega: ' + nombreDia(d.llega) +
+        '\n💵 Valor: *' + fmt(d.valor) + '*\n\n¡Muchas gracias, quedamos atentos! 🙏';
+      $('wa').href = waLink(tel, t); $('wa').hidden = false;
+    }
+    $('pProv').value = ''; $('pTel').value = ''; $('pValor').value = ''; $('pDet').value = '';
+    $('pLlega').value = sumarDias(hoy(), 1);
+  }).withFailureHandler(function(e){
+    $('btnPedido').disabled = false; msg('No se guardó: ' + e.message, 'err');
+  }).guardarPedido(d);
+}
+
+function guardarPago(){
+  var d = { fecha: $('gFecha').value, tipo: tipoPago, quien: $('gQuien').value.trim(), valor: num($('gValor').value),
+            medio: medioPago, nota: $('gNota').value.trim(), pedido: pedidoId };
+  if (!d.quien) { msg('Escriba a quién o qué se pagó', 'err'); $('gQuien').focus(); return; }
+  if (!d.valor) { msg('Escriba el valor', 'err'); $('gValor').focus(); return; }
+  $('btnPago').disabled = true; msg('Guardando...');
+  srv().withSuccessHandler(function(r){
+    $('btnPago').disabled = false;
+    pintar(r);
+    setModo('pedido');
+    msg('✅ Pago de ' + fmt(d.valor) + ' a ' + d.quien.toUpperCase() + ' guardado' + (d.medio === 'Caja' ? ' (sale de la caja)' : ''), 'ok');
+    $('gQuien').value = ''; $('gValor').value = ''; $('gNota').value = '';
+    pedidoId = ''; $('avisoPedido').hidden = true;
+    tipoPago = 'Compra mercancía'; marcar('tiposPago', tipoPago);
+    medioPago = 'Caja'; marcar('mediosPago', medioPago);
+  }).withFailureHandler(function(e){
+    $('btnPago').disabled = false;
+    if (e.cola) { setModo('pedido'); msg(e.message, 'ok'); $('gQuien').value = ''; $('gValor').value = ''; $('gNota').value = ''; return; }
+    msg('No se guardó: ' + e.message, 'err');
+  }).guardarPago(d);
+}
+
+$('gFecha').value = hoy();
+$('pLlega').value = sumarDias(hoy(), 1);
+iniciar(cargar);
+</script>
+</body>
+</html>

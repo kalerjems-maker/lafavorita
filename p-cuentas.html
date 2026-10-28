@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0F3D33">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<title>Cuentas de clientes</title>
+<script src="config.js"></script>
+<script>
+// Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
+(function(){
+  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
+  function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
+  function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
+  function guardar(k, v){
+    try { localStorage.setItem(k, JSON.stringify(v)); }
+    catch (e) { try { Object.keys(localStorage).forEach(function(x){ if (x.indexOf('favorita_c_') === 0) localStorage.removeItem(x); }); localStorage.setItem(k, JSON.stringify(v)); } catch (e2) {} }
+  }
+  function aviso(){
+    if (document.getElementById('pt-aviso')) return;
+    var d = document.createElement('div'); d.id = 'pt-aviso';
+    d.textContent = '📴 Sin internet: está viendo lo último que se cargó';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:10px;z-index:99999;background:#9B2C22;color:#fff;font:600 15px Arial,sans-serif;padding:10px 12px;border-radius:12px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)';
+    (document.body || document.documentElement).appendChild(d);
+    setTimeout(function(){ d.remove(); }, 5000);
+  }
+  function llamar(fn, args, ok, mal){
+    var lect = fn === 'api' && LECT.indexOf(args[1]) >= 0, k = lect ? clave(args) : '', viejo = lect ? leer(k) : undefined;
+    function falla(m){ if (mal) mal(new Error(m)); }
+    function sinSenal(){
+      if (viejo !== undefined) { aviso(); if (ok) ok(viejo); return; }
+      falla('Failed to fetch: sin conexión');
+    }
+    if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
+    if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
+    fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
+      .then(function(r){ return r.text(); })
+      .then(function(tx){
+        clearTimeout(t);
+        var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
+        if (!j.ok) { falla(j.err || 'Error'); return; }
+        if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (ok) ok(j.r);
+      })
+      .catch(function(){ clearTimeout(t); sinSenal(); });
+  }
+  function runner(ok, mal){
+    return new Proxy({}, { get: function(_, k){
+      if (k === 'withSuccessHandler') return function(f){ return runner(f, mal); };
+      if (k === 'withFailureHandler') return function(f){ return runner(ok, f); };
+      if (k === 'withUserObject') return function(){ return runner(ok, mal); };
+      return function(){ llamar(k, [].slice.call(arguments), ok, mal); };
+    }});
+  }
+  function lugar(){
+    var p = {}, ps = {};
+    new URLSearchParams(location.search).forEach(function(v, k){ if (!(k in p)) p[k] = v; (ps[k] = ps[k] || []).push(v); });
+    return { parameter: p, parameters: ps, hash: location.hash.replace(/^#/, '') };
+  }
+  window.google = { script: { run: runner(null, null), url: { getLocation: function(cb){ setTimeout(function(){ cb(lugar()); }, 0); } } } };
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+})();
+</script>
+
+<style>
+  body{font-family:Arial,sans-serif;background:#f4f1e8;margin:0;padding:16px 16px 40px;color:#1b1b1b;font-size:20px}
+  h1{font-size:30px;margin:4px 0 10px}
+  h2{font-size:24px;margin:28px 0 10px}
+  label{display:block;font-weight:bold;margin:18px 0 6px;font-size:22px}
+  .ayuda{display:block;font-weight:normal;font-size:16px;color:#555}
+  input,textarea{width:100%;box-sizing:border-box;font-size:30px;padding:14px;border:3px solid #999;border-radius:12px;background:#fff}
+  input:focus,textarea:focus{border-color:#0b6b52;outline:none}
+  textarea{font-size:20px}
+  button{width:100%;font-size:30px;font-weight:bold;padding:22px;border:0;border-radius:14px;background:#e8a317;color:#000;margin-top:20px}
+  button:disabled{opacity:.5}
+  .item .borr{width:auto;flex:0 0 auto;margin:0 0 0 4px;padding:8px 10px;font-size:15px;font-weight:bold;background:#fff;border:2px solid #b3261e;color:#b3261e;border-radius:8px}
+  [hidden]{display:none!important}
+  .deben{background:#8c1d18;color:#fff;border-radius:14px;padding:14px;text-align:center;font-size:20px}
+  .deben b{display:block;font-size:40px;margin-top:2px}
+  .deben .num{display:inline-block;margin-top:6px;background:rgba(255,255,255,.18);border-radius:99px;padding:4px 14px;font-size:19px;font-weight:bold}
+  .btel{margin-top:6px;font-size:16px;padding:6px 10px;border-radius:8px;border:2px solid #1d4e89;background:#fff;color:#1d4e89;font-weight:bold}
+  .ftel{display:flex;gap:6px;margin-top:6px}
+  .ftel input{flex:1;min-width:0;font-size:20px;padding:8px}
+  .ftel button{font-size:17px;padding:8px 12px;border-radius:8px;border:0;background:#1d4e89;color:#fff;font-weight:bold}
+  .tipos{display:flex;gap:10px;margin-top:16px}
+  .tipos button{flex:1;margin:0;font-size:21px;padding:18px;background:#fff;border:3px solid #999;color:#1b1b1b}
+  .tipos button.fiar.on{background:#b3261e;border-color:#b3261e;color:#fff}
+  .tipos button.abono.on{background:#0b6b52;border-color:#0b6b52;color:#fff}
+  .medios{display:flex;gap:10px}
+  .medios button{flex:1;margin:0;font-size:22px;padding:16px;background:#fff;border:3px solid #999;color:#1b1b1b}
+  .medios button.on{background:#0b6b52;border-color:#0b6b52;color:#fff}
+  .saldo{font-size:20px;margin-top:6px;font-weight:bold;color:#8c1d18}
+  .wa{display:block;text-align:center;background:#25D366;color:#fff;font-size:24px;font-weight:bold;padding:18px;border-radius:14px;margin-top:10px;text-decoration:none}
+  #msg{font-size:22px;text-align:center;margin:16px 0;font-weight:bold}
+  .ok{color:#0b6b52}.err{color:#b3261e}
+  .item{background:#fff;border:2px solid #e3dccb;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .item .q{min-width:0;flex:1;cursor:pointer}
+  .item .n{font-weight:bold;font-size:20px;overflow-wrap:anywhere}
+  .item .s{font-size:16px;color:#555}
+  .item .v{font-weight:bold;font-size:22px;white-space:nowrap}
+  .item .mini{display:inline-block;background:#25D366;color:#fff;text-decoration:none;font-size:22px;padding:8px 12px;border-radius:10px;margin-left:8px}
+  .rojo{color:#b3261e}.verde{color:#0b6b52}
+  .chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:14px;font-weight:bold;margin:4px 4px 0 0}
+  .c-ok{background:#e3f4ec;color:#0b6b52}.c-med{background:#fff1d6;color:#8a5a00}.c-mal{background:#fdecea;color:#8c1d18}
+  .vacio{text-align:center;color:#555;font-size:18px;padding:12px}
+  .hoy{display:flex;gap:10px}
+  .hoy div{flex:1;background:#fff;border:2px solid #e3dccb;border-radius:12px;padding:10px;text-align:center;font-size:16px}
+  .hoy b{display:block;font-size:24px}
+  .cartera{display:flex;gap:8px;margin-bottom:10px}
+  .cartera div{flex:1;border-radius:12px;padding:10px;text-align:center;font-size:15px;border:2px solid #e3dccb;background:#fff}
+  .cartera b{display:block;font-size:22px}
+  .cartera .c15{background:#fff1d6;border-color:#f0d9a8;color:#8a5a00}.cartera .c30{background:#fdecea;border-color:#f1c9c2;color:#8c1d18}
+  .filtros{display:flex;gap:8px;margin-bottom:10px}
+  .filtros button{flex:1;margin:0;font-size:17px;padding:10px;background:#fff;border:2px solid #999;color:#1b1b1b;border-radius:10px}
+  .filtros button.on{background:#0b6b52;border-color:#0b6b52;color:#fff}
+  .sub2{font-size:16px;color:#555;margin:-2px 0 10px}
+  .item .mini.hecho{background:#e3f4ec;color:#0b6b52}
+  .blim{border-radius:8px;border:2px solid #8a5a00;background:#fff;color:#8a5a00;font-weight:bold}
+  .item .btel,.item .blim,.cli .btel,.cli .blim{width:auto;display:inline-block;margin:6px 6px 0 0;font-size:15px;padding:6px 10px}
+  .cli{background:#fff;border:2px solid #e3dccb;border-radius:12px;padding:10px 10px 10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .cli .q{flex:1;min-width:0;cursor:pointer}
+  .cli .l1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .cli .l1 b{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .cli .l1 .v{font-weight:bold;font-size:19px;white-space:nowrap}
+  .cli .l2{font-size:14px;color:#666;margin-top:2px}
+  .cli .l2 .rojo{color:#b3261e;font-weight:bold}.cli .l2 .ambar{color:#8a5a00;font-weight:bold}.cli .l2 .gris{color:#0b6b52;font-weight:bold}
+  .cli .mas{font-size:15px;color:#444;margin-top:4px}
+  .cli .ftel{margin-top:6px}
+  .cli .opc3{width:auto;margin:0;flex:0 0 auto;padding:4px 8px;font-size:22px;line-height:1;background:#fff;border:2px solid #e3dccb;color:#555;border-radius:10px}
+  .cli .mini{flex:0 0 auto;display:inline-block;background:#25D366;color:#fff;text-decoration:none;font-size:20px;padding:7px 10px;border-radius:10px}
+  .cli .mini.hecho{background:#e3f4ec;color:#0b6b52}
+</style>
+</head>
+<body>
+<style>
+  .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
+  .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
+  .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
+  #cm-gate{position:fixed;inset:0;z-index:999;background:#0F3D33;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;font-family:Arial,sans-serif}
+  #cm-gate .m{color:#C9A54B;font-size:13px;letter-spacing:3px;font-weight:bold}
+  #cm-gate h2{margin:6px 0 18px;font-size:24px}
+  #cm-puntos{display:flex;gap:14px;margin-bottom:10px}
+  #cm-puntos i{width:18px;height:18px;border-radius:50%;border:2px solid #C9A54B}
+  #cm-puntos i.on{background:#C9A54B}
+  #cm-err{min-height:22px;color:#ffb4a8;font-weight:bold;margin-bottom:8px;text-align:center}
+  .cm-teclas{display:grid;grid-template-columns:repeat(3,78px);gap:12px}
+  .cm-teclas button{height:68px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:28px;font-weight:bold;cursor:pointer}
+  .cm-teclas button:active{background:rgba(201,165,75,.6)}
+  .cm-teclas .x{font-size:18px;background:transparent}
+  #cm-no{position:fixed;inset:0;z-index:998;background:#F3F1EA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font:20px Arial,sans-serif;text-align:center;padding:20px}
+  [hidden]{display:none!important}
+  #cm-cola{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:998;background:#1b1b1b;color:#fff;font:bold 15px Arial,sans-serif;padding:10px 16px;border-radius:24px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:92vw;text-align:center}
+  #cm-cola.sin{background:#9B2C22}
+</style>
+<div id="cm-cola" hidden></div>
+<div class="cm-barra" id="cm-barra" hidden>
+  <a class="cm-volver" id="cm-volver" href="./" target="_top">⬅ Inicio</a>
+  <span class="cm-quien" id="cm-quien"></span>
+</div>
+<div id="cm-gate" hidden>
+  <div class="m">TIENDA LA FAVORITA</div>
+  <h2>Escriba su clave</h2>
+  <div id="cm-puntos"><i></i><i></i><i></i><i></i></div>
+  <div id="cm-err"></div>
+  <div class="cm-teclas">
+    <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+    <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+    <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+    <button type="button" class="x" data-k="borrar">Borrar</button><button type="button">0</button><span></span>
+  </div>
+</div>
+<div id="cm-no" hidden>
+  <div>🔒 Esta clave no tiene acceso a esta pantalla.</div>
+  <a class="cm-volver" href="./" target="_top">⬅ Ir al inicio</a>
+</div>
+<script>
+var URL_APP = './', PIN = '', ROL = null;
+var EQUIPO = 'x';
+try { PIN = localStorage.getItem('favorita_pin') || ''; } catch (e) {}
+try {
+  EQUIPO = localStorage.getItem('favorita_equipo') || '';
+  if (!EQUIPO) { EQUIPO = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); localStorage.setItem('favorita_equipo', EQUIPO); }
+} catch (e) { EQUIPO = 'x'; }
+function llaveQR(){ return (ROL && ROL.llave) || '@jemsh6074'; }
+function conEquipo(p){ return p ? p + '#' + EQUIPO : ''; }
+function cmG(id){ return document.getElementById(id); }
+// Dentro de la PWA (app instalada): los enlaces entre pantallas se abren dentro de la misma app
+var PWA = '0' === '1';
+if (PWA) document.addEventListener('click', function(ev){
+  var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+  if (!a || a.target === '_blank') return;
+  var h = a.getAttribute('href') || '';
+  if (h.indexOf(URL_APP) !== 0) return;
+  ev.preventDefault();
+  try { window.top.postMessage({ favorita: 'ir', q: h.slice(URL_APP.length) }, '*'); } catch (e) {}
+}, true);
+// Mensajes de WhatsApp: primer nombre bonito ("JHONATAN PEREZ" -> "Jhonatan")
+function nomCorto(n){ var p = String(n || '').trim().split(/\s+/)[0] || ''; return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase(); }
+function saludoWa(n){ return '¡Hola' + (n ? ' ' + nomCorto(n) : '') + '! 👋 Le saluda *Tienda La Favorita* 🐔✨'; }
+var GRACIAS_WA = '¡Gracias por seguir prefiriéndonos! 🙏💛';
+// Línea para pagar desde la casa: llave Bre-B + página con el QR
+function pagoWa(n, v){
+  return '📲 *Puede pagar desde su casa:*\n🔑 Llave Bre-B: *' + llaveQR() + '*\n🧾 Nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0);
+}
+function msgAbono(nombre, valor, medio, saldo, fecha){
+  var f = String(fecha || '').split('-');
+  return saludoWa(nombre) + '\n\nRecibimos su abono, ¡muchas gracias! 🙌\n' + (f.length === 3 ? '📅 ' + f[2] + '/' + f[1] + '/' + f[0] + '\n' : '') +
+    '💵 Abono: *$' + sep(valor) + '* (' + medio + ')\n' +
+    (saldo > 0 ? '💰 Le queda pendiente: *$' + sep(saldo) + '*' : '🎉 ¡Quedó a paz y salvo! Su cuenta está en cero.') +
+    '\n\n' + GRACIAS_WA;
+}
+function guardarPin(p){ PIN = p; try { localStorage.setItem('favorita_pin', p); } catch (e) {} }
+function salir(){ try { localStorage.removeItem('favorita_pin'); localStorage.removeItem('favorita_rol'); localStorage.removeItem('favorita_inicio'); } catch (e) {} PIN = ''; }
+// ----- Sin internet: lo que se guarda queda en el celular y se manda solo cuando vuelve la señal -----
+var COLA_FN = { guardarCuadre: 1, guardarMov: 1, guardarPago: 1 }, ENVIANDO = false, OK_HASTA = 0;
+function sinRed(e){ return !navigator.onLine || /NetworkError|HTTP 0|network|Failed to fetch|conexi[oó]n/i.test((e && e.message) || ''); }
+function leerCola(){ try { return JSON.parse(localStorage.getItem('favorita_cola') || '[]'); } catch (e) { return []; } }
+function escribirCola(c){ try { localStorage.setItem('favorita_cola', JSON.stringify(c)); } catch (e) {} pintarCola(); }
+function aCola(fn, args){
+  var a = args[0], h = new Date();
+  a.hora = ('0' + h.getHours()).slice(-2) + ':' + ('0' + h.getMinutes()).slice(-2) + ':' + ('0' + h.getSeconds()).slice(-2);
+  OK_HASTA = 0;
+  var c = leerCola(); c.push({ fn: fn, args: args, k: a._k }); escribirCola(c);
+}
+function pintarCola(){
+  var el = cmG('cm-cola'); if (!el || Date.now() < OK_HASTA) return;
+  var n = leerCola().length, sin = !navigator.onLine;
+  el.hidden = !n && !sin;
+  el.className = sin ? 'sin' : '';
+  var cosas = n + (n === 1 ? ' cosa' : ' cosas');
+  el.textContent = sin ? '📴 Sin internet' + (n ? ' · ' + cosas + ' por enviar. No cierre la app' : '')
+    : ENVIANDO ? '⏳ Enviando ' + cosas + ' guardadas sin internet...' : '⏳ ' + cosas + ' por enviar · se reintenta sola';
+}
+function enviarCola(){
+  pintarCola();
+  if (ENVIANDO || !navigator.onLine || !PIN) return;
+  var c = leerCola(); if (!c.length) return;
+  var it = c[0]; ENVIANDO = true; pintarCola();
+  google.script.run.withSuccessHandler(function(){
+    ENVIANDO = false;
+    escribirCola(leerCola().filter(function(x){ return x.k !== it.k; }));
+    if (!leerCola().length) { var el = cmG('cm-cola'); el.hidden = false; el.className = ''; el.textContent = '✅ Ya se envió todo lo guardado sin internet'; OK_HASTA = Date.now() + 4000; setTimeout(pintarCola, 4100); return; }
+    enviarCola();
+  }).withFailureHandler(function(e){
+    ENVIANDO = false;
+    if (sinRed(e) || /Clave|intentos/.test(e.message || '')) { pintarCola(); return; }   // se reintenta después
+    escribirCola(leerCola().filter(function(x){ return x.k !== it.k; }));
+    alert('No se pudo enviar algo guardado sin internet (' + it.fn + ' ' + JSON.stringify(it.args[0]).slice(0, 120) + '): ' + e.message + '. Anótelo de nuevo.');
+    enviarCola();
+  }).api(conEquipo(PIN), it.fn, it.args);
+}
+window.addEventListener('online', enviarCola);
+window.addEventListener('offline', function(){ OK_HASTA = 0; pintarCola(); });
+setInterval(enviarCola, 20000);
+setTimeout(enviarCola, 1500);
+
+// Igual que google.script.run, pero pasa la clave al servidor
+function srv(){
+  var ok = null, mal = null;
+  var o = { withSuccessHandler: function(f){ ok = f; return p; }, withFailureHandler: function(f){ mal = f; return p; } };
+  var p = new Proxy(o, { get: function(t, k){
+    if (k in t) return t[k];
+    return function(){
+      var args = [].slice.call(arguments), cola = COLA_FN[k] && args[0] && typeof args[0] === 'object';
+      if (cola && !args[0]._k) args[0]._k = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      var guardarSinRed = function(){
+        aCola(k, args);
+        if (mal) mal({ cola: true, message: '📴 Sin internet: quedó guardado en el celular y se envía solo cuando vuelva la señal. No cierre la app.' });
+      };
+      if (cola && !navigator.onLine) { guardarSinRed(); return; }
+      var r = google.script.run;
+      if (ok) r = r.withSuccessHandler(ok);
+      r = r.withFailureHandler(function(e){
+        if (cola && sinRed(e)) { guardarSinRed(); return; }
+        if (/Clave incorrecta/.test(e.message)) salir();
+        if (mal) mal(e);
+      });
+      r.api(conEquipo(PIN), k, args);
+    };
+  }});
+  return p;
+}
+function mostrar(r, fn){
+  ROL = r;
+  cmG('cm-gate').hidden = true;
+  if (r.paginas.indexOf(PAGINA) < 0) { cmG('cm-no').hidden = false; return false; }
+  cmG('cm-no').hidden = true;
+  cmG('cm-barra').hidden = false;
+  cmG('cm-volver').hidden = PAGINA === 'inicio';
+  cmG('cm-quien').textContent = '🔓 ' + r.nombre;
+  if (fn) fn();
+  return true;
+}
+function iniciar(fn){
+  if (!PIN) { pedirClave(fn); return; }
+  var guardado = null;
+  try { guardado = JSON.parse(localStorage.getItem('favorita_rol') || 'null'); } catch (e) {}
+  // Si ya se conoce la clave, la pantalla arranca de una vez y se verifica al mismo tiempo
+  var ya = guardado ? mostrar(guardado, fn) : false;
+  google.script.run.withSuccessHandler(function(r){
+    if (r && r.bloqueado) { salir(); pedirClave(fn, '⛔ Demasiados intentos. Espere ' + r.bloqueado + ' min.'); return; }
+    if (!r) { salir(); pedirClave(fn, 'La clave cambió. Escríbala de nuevo.'); return; }
+    try { localStorage.setItem('favorita_rol', JSON.stringify(r)); } catch (e) {}
+    if (!guardado) mostrar(r, fn);
+    else if (JSON.stringify(guardado) !== JSON.stringify(r)) mostrar(r, ya ? null : fn);   // si con lo guardado no podía entrar y ahora sí, carga
+  }).withFailureHandler(function(e){
+    if (!guardado) pedirClave(fn, 'Sin conexión. Intente otra vez.');
+  }).api(conEquipo(PIN), 'rol', []);
+}
+function pedirClave(fn, aviso){
+  var g = cmG('cm-gate'), dig = '';
+  g.hidden = false; cmG('cm-err').textContent = aviso || '';
+  var puntos = cmG('cm-puntos').children;
+  function pintar(){ for (var i = 0; i < 4; i++) puntos[i].className = i < dig.length ? 'on' : ''; }
+  pintar();
+  g.querySelectorAll('.cm-teclas button').forEach(function(b){
+    b.onclick = function(){
+      if (b.getAttribute('data-k') === 'borrar') { dig = dig.slice(0, -1); pintar(); return; }
+      if (dig.length >= 4) return;
+      dig += b.textContent; pintar(); cmG('cm-err').textContent = '';
+      if (dig.length === 4) {
+        cmG('cm-err').textContent = 'Revisando...';
+        google.script.run.withSuccessHandler(function(r){
+          if (r && r.bloqueado) { dig = ''; pintar(); cmG('cm-err').textContent = '⛔ Demasiados intentos. Espere ' + r.bloqueado + ' min.'; return; }
+          if (!r) { dig = ''; pintar(); cmG('cm-err').textContent = 'Clave incorrecta'; return; }
+          guardarPin(dig); iniciar(fn);
+        }).withFailureHandler(function(){ dig = ''; pintar(); cmG('cm-err').textContent = 'Sin conexión. Intente otra vez.'; })
+          .api(conEquipo(dig), 'rol', []);
+      }
+    };
+  });
+}
+</script>
+
+<h1>Cuentas de clientes</h1>
+
+<div class="deben">Me deben en total<b id="totalDeben">$0</b><span id="numDeben" class="num"></span></div>
+
+<div class="tipos">
+  <button type="button" class="fiar on" data-t="fiado">📝 QUEDÓ DEBIENDO</button>
+  <button type="button" class="abono" data-t="abono">💵 ABONÓ</button>
+</div>
+
+<label for="fecha">📅 Fecha</label>
+<input type="date" id="fecha" onchange="cargar()">
+
+<label for="cliente">👤 Cliente<span class="ayuda">Escriba el nombre o elíjalo de la lista</span></label>
+<input id="cliente" list="clientes" autocomplete="off">
+<datalist id="clientes"></datalist>
+<div class="saldo" id="saldoCli"></div>
+
+<label for="tel">📞 Celular del cliente<span class="ayuda">Para mandarle el comprobante por WhatsApp</span></label>
+<input id="tel" type="tel" inputmode="tel" autocomplete="off">
+
+<label for="valor" id="lblValor">💵 Cuánto quedó debiendo</label>
+<input id="valor" inputmode="numeric" autocomplete="off">
+
+<div id="boxMedio" hidden>
+  <label>💳 Cómo pagó</label>
+  <div class="medios">
+    <button type="button" class="on" data-m="Efectivo">💵 Efectivo</button>
+    <button type="button" data-m="Transferencia QR">📱 QR</button>
+  </div>
+</div>
+
+<label for="nota">✏️ Nota<span class="ayuda">Ejemplo: arroz, aceite y huevos</span></label>
+<textarea id="nota" rows="2"></textarea>
+
+<button id="btn" onclick="guardar()">GUARDAR DEUDA</button>
+<a id="wa" class="wa" target="_blank" rel="noopener" hidden>📲 Enviar comprobante al cliente</a>
+<div id="msg"></div>
+
+<h2>Hoy</h2>
+<div class="hoy">
+  <div>Deudas nuevas hoy<b class="rojo" id="hoyF">$0</b></div>
+  <div>Abonos hoy<b class="verde" id="hoyA">$0</b></div>
+</div>
+<div id="mov" style="margin-top:10px"></div>
+
+<h2>Clientes que me deben</h2>
+<div class="cartera" id="cartera"></div>
+<div class="filtros" id="filtros">
+  <button type="button" class="on" data-f="0">Todos</button>
+  <button type="button" data-f="15">+15 días</button>
+  <button type="button" data-f="30">+30 días</button>
+</div>
+<div class="sub2" id="cobrarTxt" hidden>Toque 📲 en cada uno para mandarle el cobro con el QR. Se marca ✓ cuando ya se lo mandó hoy.</div>
+<div id="lista"></div>
+
+<script>
+var PAGINA = 'cuentas';
+// Número al que se envía si el cliente no tiene celular (ej. '3001234567'). Vacío = escoger el contacto.
+var WHATSAPP = '';
+
+var tipo = 'fiado', medio = 'Efectivo', CL = {}, confirmar = false, FILTRO = 0, ULT = null;
+function cobrados(){ try { return JSON.parse(localStorage.getItem('favorita_cobro_' + hoy()) || '{}'); } catch (e) { return {}; } }
+function marcarCobro(n){ var c = cobrados(); c[n] = 1; try { localStorage.setItem('favorita_cobro_' + hoy(), JSON.stringify(c)); } catch (e) {} }
+function chipAbono(d){ return '<span class="chip ' + (d < 0 || d > 30 ? 'c-mal' : d >= 15 ? 'c-med' : 'c-ok') + '">' + (d < 0 ? 'Nunca ha abonado' : d === 0 ? 'Abonó hoy' : 'Último abono hace ' + d + (d === 1 ? ' día' : ' días')) + '</span>'; }
+function chipDias(d){
+  var cls = d > 30 ? 'c-mal' : d >= 15 ? 'c-med' : 'c-ok';
+  return '<span class="chip ' + cls + '">' + (d === 0 ? 'Desde hoy' : 'Hace ' + d + (d === 1 ? ' día' : ' días')) + '</span>';
+}
+function $(id){ return document.getElementById(id); }
+function num(x){ return typeof x === 'number' ? x : (Number(String(x || '').replace(/\D/g, '')) || 0); }
+function sep(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+function fmt(n){ return (n < 0 ? '-$' : '$') + sep(Math.abs(n)); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function msg(t, c){ $('msg').textContent = t; $('msg').className = c || ''; }
+function fechaBonita(f){ var p = f.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function hoy(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function waLink(tel, texto){
+  var n = String(tel || WHATSAPP).replace(/\D/g, '');
+  if (n.length === 10) n = '57' + n;
+  return 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto);
+}
+function recordatorio(c){
+  return saludoWa(c.n) + '\n\nEspero que esté muy bien 😊 Le escribo para recordarle con mucho cariño que tiene un valor pendiente por *' + fmt(c.saldo) + '* 📝\n\nCuando tenga la oportunidad nos ayuda con eso.\n\n' + pagoWa(c.n, c.saldo) + '\n\n' + GRACIAS_WA;
+}
+
+function setTipo(t){
+  tipo = t;
+  document.querySelectorAll('.tipos button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-t') === t); });
+  $('boxMedio').hidden = t !== 'abono';
+  $('lblValor').textContent = t === 'abono' ? '💵 Cuánto abonó' : '💵 Cuánto quedó debiendo';
+  $('btn').textContent = t === 'abono' ? 'GUARDAR ABONO' : 'GUARDAR DEUDA';
+  $('wa').hidden = true; confirmar = false; msg('');
+}
+function setMedio(m){
+  medio = m;
+  document.querySelectorAll('.medios button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-m') === m); });
+}
+document.querySelectorAll('.tipos button').forEach(function(b){
+  b.addEventListener('click', function(){ setTipo(b.getAttribute('data-t')); });
+});
+document.querySelectorAll('.medios button').forEach(function(b){
+  b.addEventListener('click', function(){
+    setMedio(b.getAttribute('data-m'));
+  });
+});
+$('valor').addEventListener('input', function(){
+  var n = num($('valor').value); $('valor').value = n ? sep(n) : '';
+});
+$('cliente').addEventListener('input', function(){ confirmar = false; mostrarCliente(); });
+$('valor').addEventListener('input', function(){ confirmar = false; });
+
+function mostrarCliente(){
+  var c = CL[$('cliente').value.trim().toUpperCase()];
+  if (c) {
+    if (!$('tel').value && c.tel) $('tel').value = c.tel;
+    $('saldoCli').textContent = c.saldo > 0
+      ? 'Debe: ' + fmt(c.saldo) + ' · hace ' + c.dias + ' días · límite ' + fmt(c.limite)
+      : 'No debe nada · límite ' + fmt(c.limite);
+    $('saldoCli').className = 'saldo ' + (c.saldo > 0 ? 'rojo' : 'verde');
+  } else {
+    $('saldoCli').textContent = '';
+  }
+}
+
+function elegir(nombre){
+  $('cliente').value = nombre; $('tel').value = '';
+  mostrarCliente();
+  setTipo('abono');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function pintar(r){
+  ULT = r; CL = {};
+  r.clientes.forEach(function(c){ CL[c.n] = c; });
+  $('totalDeben').textContent = fmt(r.totalDeben);
+  $('numDeben').textContent = r.numDeben === 1 ? '1 cliente debe' : (r.numDeben || 0) + ' clientes deben';
+  $('hoyF').textContent = fmt(r.hoyFiado);
+  $('hoyA').textContent = fmt(r.hoyAbono);
+  $('clientes').innerHTML = r.clientes.map(function(c){ return '<option value="' + esc(c.n) + '">'; }).join('');
+
+  var v15 = r.v15 || { n: 0, v: 0 }, v30 = r.v30 || { n: 0, v: 0 };
+  $('cartera').innerHTML = '<div class="c15">De 15 a 30 días<b>' + fmt(v15.v) + '</b>' + v15.n + (v15.n === 1 ? ' cliente' : ' clientes') + '</div>' +
+    '<div class="c30">Más de 30 días<b>' + fmt(v30.v) + '</b>' + v30.n + (v30.n === 1 ? ' cliente' : ' clientes') + '</div>';
+  $('cobrarTxt').hidden = !FILTRO;
+  var env = cobrados();
+  var deben = r.clientes.filter(function(c){ return c.saldo > 0 && (!FILTRO || (FILTRO === 30 ? c.dias > 30 : c.dias >= 15)); });
+  $('lista').innerHTML = deben.length
+    ? deben.map(function(c){
+        var hecho = env[c.n];
+        // Renglón compacto: nombre y saldo arriba, estado en una línea, opciones (celular y límite) escondidas en ⋯
+        var dd = c.dias, cls = dd > 30 ? 'rojo' : dd >= 15 ? 'ambar' : 'gris';
+        var estado = '<span class="' + cls + '">' + (dd === 0 ? 'Desde hoy' : 'Hace ' + dd + ' d') + '</span> · ' +
+          (c.diasAbono < 0 ? '<span class="rojo">nunca abonó</span>' : c.diasAbono === 0 ? 'abonó hoy' : 'abonó hace ' + c.diasAbono + ' d') +
+          (c.saldo > c.limite ? ' · <span class="rojo">⚠️ límite ' + fmt(c.limite) + '</span>' : '');
+        return '<div class="cli"><div class="q" data-n="' + esc(c.n) + '"><div class="l1"><b>' + esc(c.n) + '</b><span class="v rojo">' + fmt(c.saldo) + '</span></div>' +
+          '<div class="l2">' + estado + '</div>' +
+          '<div class="mas" hidden>' + (c.tel ? '📞 ' + esc(c.tel) + ' ' : '') +
+          '<button type="button" class="btel" data-n="' + esc(c.n) + '" data-t="' + esc(c.tel) + '">' + (c.tel ? '✏️ Celular' : '📞 Agregar celular') + '</button>' +
+          '<button type="button" class="blim" data-n="' + esc(c.n) + '" data-l="' + (c.limPropio ? c.limite : '') + '">💳 Límite ' + fmt(c.limite) + '</button></div></div>' +
+          '<button type="button" class="opc3" aria-label="Opciones">⋯</button>' +
+          '<a class="mini' + (hecho ? ' hecho' : '') + '" data-n="' + esc(c.n) + '" target="_blank" rel="noopener" href="' + esc(waLink(c.tel, recordatorio(c))) + '">' + (hecho ? '✓' : '📲') + '</a></div>';
+      }).join('')
+    : '<div class="vacio">' + (FILTRO ? 'Nadie tiene deudas de más de ' + FILTRO + ' días. 👍' : 'Nadie debe. 👍') + '</div>';
+  document.querySelectorAll('#lista .mini').forEach(function(a){
+    a.addEventListener('click', function(){ marcarCobro(a.getAttribute('data-n')); a.classList.add('hecho'); a.textContent = '✓'; });
+  });
+  document.querySelectorAll('#lista .opc3').forEach(function(b){
+    b.addEventListener('click', function(){ var m = b.parentNode.querySelector('.mas'); m.hidden = !m.hidden; });
+  });
+  document.querySelectorAll('#lista .blim').forEach(function(b){
+    b.addEventListener('click', function(){ abrirLimite(b); });
+  });
+  document.querySelectorAll('#lista .q').forEach(function(el){
+    el.addEventListener('click', function(ev){
+      if (ev.target.closest('.btel, .ftel, .blim, .mas')) return;
+      elegir(el.getAttribute('data-n'));
+    });
+  });
+  document.querySelectorAll('#lista .btel').forEach(function(b){
+    b.addEventListener('click', function(){ abrirTel(b); });
+  });
+
+  $('mov').innerHTML = r.mov.length
+    ? r.mov.map(function(m){
+        var f = m.tipo === 'fiado';
+        return '<div class="item"><div class="q"><div class="n">' + (f ? '📝 ' : '💵 ') + esc(m.cliente) + '</div><div class="s">' +
+          esc(m.hora) + ' · ' + (f ? 'Quedó debiendo' : 'Abonó ' + esc(m.medio)) + (m.nota ? ' · ' + esc(m.nota) : '') + '</div></div>' +
+          '<div class="v ' + (f ? 'rojo' : 'verde') + '">' + (f ? '+' : '-') + fmt(m.valor) + '</div>' +
+          '<button type="button" class="borr" data-i="' + r.mov.indexOf(m) + '" aria-label="Borrar">🗑️</button></div>';
+      }).join('')
+    : '<div class="vacio">Sin movimientos este día</div>';
+  // Borrar un movimiento mal anotado (hay que tocar dos veces)
+  document.querySelectorAll('#mov .borr').forEach(function(b){
+    b.addEventListener('click', function(){
+      var m = r.mov[+b.getAttribute('data-i')];
+      if (!b.getAttribute('data-ok')) { b.setAttribute('data-ok', '1'); b.textContent = '¿Borrar?'; return; }
+      b.disabled = true; b.textContent = '...';
+      srv().withSuccessHandler(function(x){ pintar(x); msg('🗑️ Se borró: ' + (m.tipo === 'fiado' ? 'deuda' : 'abono') + ' de ' + m.cliente + ' por ' + fmt(m.valor), 'ok'); })
+        .withFailureHandler(function(e){ b.disabled = false; b.textContent = '🗑️'; msg('No se borró: ' + e.message, 'err'); })
+        .borrarMov({ tipo: m.tipo, fila: m.fila, t: m.t, valor: m.valor, fecha: $('fecha').value });
+    });
+  });
+  mostrarCliente();
+}
+
+document.querySelectorAll('#filtros button').forEach(function(b){
+  b.addEventListener('click', function(){
+    FILTRO = +b.getAttribute('data-f');
+    document.querySelectorAll('#filtros button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    if (ULT) pintar(ULT);
+  });
+});
+
+// Límite de deuda de un cliente (vacío = el límite general)
+function abrirLimite(b){
+  var f = document.createElement('div');
+  f.className = 'ftel';
+  f.innerHTML = '<input inputmode="numeric" placeholder="Límite (vacío = ' + fmt(ULT ? ULT.limiteGeneral : 0) + ')" value="' + (b.getAttribute('data-l') ? sep(+b.getAttribute('data-l')) : '') + '"><button type="button">GUARDAR</button>';
+  b.replaceWith(f);
+  var inp = f.querySelector('input'), g = f.querySelector('button'), nombre = b.getAttribute('data-n');
+  inp.focus();
+  inp.addEventListener('input', function(){ var n = num(inp.value); inp.value = n ? sep(n) : ''; });
+  g.addEventListener('click', function(){
+    g.disabled = true; g.textContent = '...';
+    srv().withSuccessHandler(function(r){ pintar(r); msg('✅ Límite de ' + nombre + ': ' + (num(inp.value) ? fmt(num(inp.value)) : 'el general'), 'ok'); })
+      .withFailureHandler(function(e){ g.disabled = false; g.textContent = 'GUARDAR'; msg('No se guardó: ' + e.message, 'err'); })
+      .guardarLimite(nombre, num(inp.value), $('fecha').value);
+  });
+}
+
+// Agregar o cambiar el celular de un cliente desde la lista
+function abrirTel(b){
+  var f = document.createElement('div');
+  f.className = 'ftel';
+  f.innerHTML = '<input type="tel" inputmode="tel" placeholder="Celular" value="' + esc(b.getAttribute('data-t')) + '"><button type="button">GUARDAR</button>';
+  b.replaceWith(f);
+  var inp = f.querySelector('input'), g = f.querySelector('button'), nombre = b.getAttribute('data-n');
+  inp.focus();
+  g.addEventListener('click', function(){
+    var t = inp.value.replace(/\D/g, '');
+    if (t.length < 7) { msg('Escriba el número completo de ' + nombre, 'err'); inp.focus(); return; }
+    g.disabled = true; g.textContent = '...';
+    srv().withSuccessHandler(function(r){
+      pintar(r); msg('✅ Celular de ' + nombre + ' guardado: ' + t, 'ok');
+    }).withFailureHandler(function(e){
+      g.disabled = false; g.textContent = 'GUARDAR'; msg('No se guardó: ' + e.message, 'err');
+    }).guardarCelular(nombre, t, $('fecha').value);
+  });
+}
+
+function cargar(){
+  msg(''); $('wa').hidden = true;
+  srv().withSuccessHandler(pintar)
+    .withFailureHandler(function(e){ msg('Error: ' + e.message, 'err'); })
+    .cuentas($('fecha').value);
+}
+
+function guardar(){
+  var d = { tipo: tipo, fecha: $('fecha').value, cliente: $('cliente').value.trim(), tel: $('tel').value.trim(),
+            valor: num($('valor').value), medio: medio, nota: $('nota').value.trim() };
+  if (!d.cliente) { msg('Escriba el nombre del cliente', 'err'); $('cliente').focus(); return; }
+  if (!d.valor) { msg('Escriba el valor', 'err'); $('valor').focus(); return; }
+  var cli = CL[d.cliente.toUpperCase()];
+  var lim = cli ? cli.limite : 0, deberia = (cli ? cli.saldo : 0) + d.valor;
+  var debe = cli ? cli.saldo : 0, aviso = '';
+  if (d.tipo === 'fiado' && lim && deberia > lim) aviso = '⚠️ Con esto quedaría debiendo ' + fmt(deberia) + ' y su límite es ' + fmt(lim) + '.';
+  if (d.tipo === 'abono' && debe <= 0) aviso = '⚠️ ' + d.cliente.toUpperCase() + ' no debe nada. ¿Seguro que es abono?';
+  else if (d.tipo === 'abono' && d.valor > debe) aviso = '⚠️ Está abonando ' + fmt(d.valor) + ' pero solo debe ' + fmt(debe) + '.';
+  if (aviso && !confirmar) {
+    confirmar = true;
+    msg(aviso + ' Toque GUARDAR otra vez para confirmar.', 'err');
+    return;
+  }
+  confirmar = false;
+  $('btn').disabled = true; msg('Guardando...');
+  srv().withSuccessHandler(function(r){
+    $('btn').disabled = false;
+    var nombre = d.cliente.toUpperCase();
+    var c = null;
+    r.clientes.forEach(function(x){ if (x.n === nombre) c = x; });
+    var saldo = c ? c.saldo : 0;
+    var t = d.tipo === 'abono'
+      ? msgAbono(nombre, d.valor, d.medio, saldo, d.fecha)
+      : saludoWa(nombre) + '\n\nLe comparto el detalle de su compra 📝\n📅 ' + fechaBonita(d.fecha) + '\n🛒 Valor: *' + fmt(d.valor) + '*' +
+        (d.nota ? '\n✏️ ' + d.nota : '') + '\n💰 Total pendiente: *' + fmt(saldo) + '*\n\nCuando tenga la oportunidad nos ayuda con eso.\n\n' + pagoWa(nombre, saldo) + '\n\n' + GRACIAS_WA;
+    $('wa').href = waLink(d.tel || (c && c.tel), t); $('wa').hidden = false;
+    msg('✅ ' + (d.tipo === 'abono' ? 'Abono guardado' : 'Deuda guardada') + ': ' + nombre + ' por ' + fmt(d.valor) + '. Ahora debe ' + fmt(saldo), 'ok');
+    $('cliente').value = ''; $('tel').value = ''; $('valor').value = ''; $('nota').value = '';
+    setMedio('Efectivo');
+    pintar(r);
+  }).withFailureHandler(function(e){
+    $('btn').disabled = false;
+    if (e.cola) { msg(e.message, 'ok'); $('cliente').value = ''; $('tel').value = ''; $('valor').value = ''; $('nota').value = ''; return; }
+    msg('No se guardó: ' + e.message, 'err');
+  }).guardarMov(d);
+}
+
+$('fecha').value = hoy();
+google.script.url.getLocation(function(l){ if (l.parameter && l.parameter.p === 'abonos') setTipo('abono'); });
+iniciar(cargar);
+</script>
+</body>
+</html>

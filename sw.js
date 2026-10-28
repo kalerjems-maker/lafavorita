@@ -1,16 +1,24 @@
-// Guarda la "cáscara" de la app en el celular para que abra al instante (la app de adentro siempre viene fresca de Google)
-var CACHE = 'favorita-v3';
-var ARCHIVOS = ['./', './index.html', './config.js', './manifest.webmanifest', './icono-192.png', './icono-512.png', './icono-maskable-512.png', './apple-touch-icon.png', './logo-tienda.png'];
-self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); })); self.skipWaiting(); });
+// Guarda todas las pantallas en el celular: abren al instante y también sin internet.
+// Los datos siempre vienen frescos de Google (si no hay señal, se muestran los últimos guardados).
+var CACHE = 'favorita-v5';
+var ARCHIVOS = ['./', './index.html', './config.js', './manifest.webmanifest', './icono-192.png', './icono-512.png', './icono-maskable-512.png', './apple-touch-icon.png', './logo-tienda.png',
+  './p-inicio.html', './p-cuadre.html', './p-cuentas.html', './p-proveedores.html', './p-precios.html', './p-catalogo.html', './p-panel.html', './p-historial.html', './p-fijos.html'];
+self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS.map(function (u) { return new Request(u, { cache: 'reload' }); })); })); self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); })); }));
   self.clients.claim();
 });
 self.addEventListener('fetch', function (e) {
+  if (e.request.method !== 'GET') return;
   var u = new URL(e.request.url);
-  if (u.origin !== location.origin) return;   // lo de Google no se toca
-  // Primero lo de internet (por si se actualiza), si no hay señal lo guardado
-  e.respondWith(fetch(e.request).then(function (r) {
-    var copia = r.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copia); }); return r;
-  }).catch(function () { return caches.match(e.request).then(function (r) { return r || caches.match('./index.html'); }); }));
+  var fuentes = /fonts\.(googleapis|gstatic)\.com$/.test(u.hostname);
+  if (u.origin !== location.origin && !fuentes) return;   // lo de Google (datos) no se toca
+  // Se abre lo guardado de una vez y por detrás se trae la versión nueva para la próxima vez
+  e.respondWith(caches.open(CACHE).then(function (c) {
+    return c.match(e.request, { ignoreSearch: !fuentes }).then(function (g) {
+      var red = fetch(e.request).then(function (r) { if (r && (r.ok || r.type === 'opaque')) c.put(fuentes ? e.request : u.origin + u.pathname, r.clone()); return r; });
+      if (g) { red.catch(function () {}); return g; }
+      return red.catch(function () { return c.match('./p-inicio.html'); });
+    });
+  }));
 });

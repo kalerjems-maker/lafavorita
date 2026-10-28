@@ -4,66 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0F3D33">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>La Favorita</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icono-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<style>
-  :root{--verde:#0F3D33;--oro:#C9A54B}
-  html,body{margin:0;height:100%;background:#0D47A1;overflow:hidden}
-  #app{position:fixed;inset:0;width:100%;height:100%;border:0;background:#F3F1EA}
-  #carga{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:radial-gradient(120% 90% at 50% 20%,#2878EB 0%,#0D47A1 60%,#082A8C 100%);color:#FFD60A;font-family:Georgia,serif;z-index:2;transition:opacity .35s}
-  #carga img{width:min(86vw,420px);height:auto;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))}
-  #carga b{font-size:28px;letter-spacing:.5px}
-  #carga small{font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#dbe7ff;font-size:15px}
-  .punto{width:46px;height:4px;border-radius:99px;background:rgba(255,214,10,.25);overflow:hidden}
-  .punto i{display:block;width:40%;height:100%;background:#FFD60A;border-radius:99px;animation:va 1s ease-in-out infinite alternate}
-  @keyframes va{from{transform:translateX(-10%)}to{transform:translateX(160%)}}
-  #sinRed{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));background:#9B2C22;color:#fff;font:600 15px "Segoe UI",Roboto,Arial,sans-serif;padding:12px 14px;border-radius:14px;z-index:3;text-align:center}
-  .oculto{opacity:0;pointer-events:none}
-  [hidden]{display:none!important}
-</style>
+<style>html,body{margin:0;height:100%;background:#0D47A1}</style>
 </head>
 <body>
-<div id="carga"><img src="logo-tienda.png" alt="Tienda La Favorita del Hogar"><div class="punto"><i></i></div><small id="cargaTxt">Abriendo...</small></div>
-<iframe id="app" title="Tienda La Favorita" allow="camera; microphone; clipboard-write; geolocation" src="about:blank"></iframe>
-<div id="sinRed" hidden>📴 Sin internet. La app se abre apenas vuelva la señal.</div>
 <script src="config.js"></script>
 <script>
+// Reparte a la pantalla que se pidió (?p=cuentas → p-cuentas.html), todas guardadas en el celular
 (function(){
-  var app = document.getElementById('app'), carga = document.getElementById('carga');
-  var primera = true;
-  function quitarCarga(){ if (!primera) return; primera = false; carga.classList.add('oculto'); setTimeout(function(){ carga.hidden = true; }, 400); }
-  if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { document.getElementById('cargaTxt').textContent = 'Falta pegar la URL de la app en config.js'; return; }
-  // Cada pantalla se abre en un marco nuevo: así el botón "atrás" solo usa el historial de la app
-  function abrir(q, guardar){
-    q = q || '';
-    var n = document.createElement('iframe');
-    n.id = 'app'; n.title = app.title; n.setAttribute('allow', app.getAttribute('allow'));
-    n.src = APP_URL + (q.charAt(0) === '?' ? q + '&pwa=1' : '?pwa=1');
-    app.replaceWith(n); app = n;
-    if (primera) app.addEventListener('load', quitarCarga);
-    if (guardar) history.pushState({ q: q }, '', '#' + (q ? q.slice(1) : ''));
-  }
-  // Las pantallas de la app piden cambiar de pantalla con un mensaje
-  window.addEventListener('message', function(e){
-    var h = ''; try { h = new URL(e.origin).hostname; } catch (x) {}
-    if (!/(\.googleusercontent\.com|script\.google\.com)$/.test(h)) return;
-    if (e.data && e.data.favorita === 'ir') abrir(e.data.q, true);
-  });
-  // Botón "atrás" del celular: vuelve a la pantalla anterior de la app
-  window.addEventListener('popstate', function(e){ abrir(e.state && e.state.q, false); });
-  setTimeout(quitarCarga, 9000);
-  function red(){ document.getElementById('sinRed').hidden = navigator.onLine; }
-  window.addEventListener('online', function(){ red(); });
-  window.addEventListener('offline', red); red();
-  var q0 = location.hash.length > 1 ? '?' + location.hash.slice(1) : '';
-  history.replaceState({ q: q0 }, '', location.hash || '#');
-  abrir(q0, false);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  var q = location.search || (location.hash.length > 1 ? '?' + location.hash.slice(1) : '');
+  var s = new URLSearchParams(q), p = s.get('p') || 'inicio';
+  var alias = { fiados: 'cuentas', abonos: 'cuentas', pagos: 'proveedores' };
+  var pags = ['inicio', 'cuadre', 'cuentas', 'proveedores', 'precios', 'catalogo', 'panel', 'historial', 'fijos'];
+  if ((p === 'tienda' || p === 'pagar') && window.APP_URL) { location.replace(APP_URL + q); return; }
+  p = alias[p] || p;
+  if (pags.indexOf(p) < 0) p = 'inicio';
+  s.delete('app');
+  var r = s.toString();
+  location.replace('p-' + p + '.html' + (r ? '?' + r : ''));
 })();
 </script>
 </body>
