@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F3D33">
+<title>La Favorita</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>html,body{margin:0;height:100%;background:#0D47A1}</style>
+</head>
+<body>
+<script src="config.js"></script>
+<script>
+// Reparte a la pantalla que se pidió (?p=cuentas → p-cuentas.html), todas guardadas en el celular
+(function(){
+  var q = location.search || (location.hash.length > 1 ? '?' + location.hash.slice(1) : '');
+  var s = new URLSearchParams(q), p = s.get('p') || 'inicio';
+  var alias = { fiados: 'cuentas', abonos: 'cuentas', pagos: 'proveedores' };
+  var pags = ['inicio', 'cuadre', 'cuentas', 'proveedores', 'precios', 'catalogo', 'panel', 'historial', 'fijos'];
+  if ((p === 'tienda' || p === 'pagar') && window.APP_URL) { location.replace(APP_URL + q); return; }
+  p = alias[p] || p;
+  if (pags.indexOf(p) < 0) p = 'inicio';
+  s.delete('app');
+  var r = s.toString();
+  location.replace('p-' + p + '.html' + (r ? '?' + r : ''));
+})();
+</script>
+</body>
+</html>

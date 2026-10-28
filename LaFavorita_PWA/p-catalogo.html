@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0F3D33">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<title>Catálogo y avisos</title>
+<script src="config.js"></script>
+<script>
+// Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
+(function(){
+  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
+  function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
+  function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
+  function guardar(k, v){
+    try { localStorage.setItem(k, JSON.stringify(v)); }
+    catch (e) { try { Object.keys(localStorage).forEach(function(x){ if (x.indexOf('favorita_c_') === 0) localStorage.removeItem(x); }); localStorage.setItem(k, JSON.stringify(v)); } catch (e2) {} }
+  }
+  function aviso(){
+    if (document.getElementById('pt-aviso')) return;
+    var d = document.createElement('div'); d.id = 'pt-aviso';
+    d.textContent = '📴 Sin internet: está viendo lo último que se cargó';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:10px;z-index:99999;background:#9B2C22;color:#fff;font:600 15px Arial,sans-serif;padding:10px 12px;border-radius:12px;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.25)';
+    (document.body || document.documentElement).appendChild(d);
+    setTimeout(function(){ d.remove(); }, 5000);
+  }
+  function llamar(fn, args, ok, mal){
+    var lect = fn === 'api' && LECT.indexOf(args[1]) >= 0, k = lect ? clave(args) : '', viejo = lect ? leer(k) : undefined;
+    function falla(m){ if (mal) mal(new Error(m)); }
+    function sinSenal(){
+      if (viejo !== undefined) { aviso(); if (ok) ok(viejo); return; }
+      falla('Failed to fetch: sin conexión');
+    }
+    if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
+    if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
+    fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
+      .then(function(r){ return r.text(); })
+      .then(function(tx){
+        clearTimeout(t);
+        var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
+        if (!j.ok) { falla(j.err || 'Error'); return; }
+        if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (ok) ok(j.r);
+      })
+      .catch(function(){ clearTimeout(t); sinSenal(); });
+  }
+  function runner(ok, mal){
+    return new Proxy({}, { get: function(_, k){
+      if (k === 'withSuccessHandler') return function(f){ return runner(f, mal); };
+      if (k === 'withFailureHandler') return function(f){ return runner(ok, f); };
+      if (k === 'withUserObject') return function(){ return runner(ok, mal); };
+      return function(){ llamar(k, [].slice.call(arguments), ok, mal); };
+    }});
+  }
+  function lugar(){
+    var p = {}, ps = {};
+    new URLSearchParams(location.search).forEach(function(v, k){ if (!(k in p)) p[k] = v; (ps[k] = ps[k] || []).push(v); });
+    return { parameter: p, parameters: ps, hash: location.hash.replace(/^#/, '') };
+  }
+  window.google = { script: { run: runner(null, null), url: { getLocation: function(cb){ setTimeout(function(){ cb(lugar()); }, 0); } } } };
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+})();
+</script>
+
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;background:#f4f1e8;margin:0;padding:16px 16px 40px;color:#1b1b1b;font-size:19px}
+  h1{font-size:30px;margin:4px 0 10px}
+  h2{font-size:22px;margin:24px 0 10px}
+  label{display:block;font-weight:bold;margin:14px 0 6px;font-size:19px}
+  .ayuda{display:block;font-weight:normal;font-size:15px;color:#555}
+  input,textarea{width:100%;box-sizing:border-box;font-size:22px;padding:12px;border:3px solid #999;border-radius:12px;background:#fff;font-family:inherit}
+  textarea{font-size:17px}
+  input:focus,textarea:focus{border-color:#0b6b52;outline:none}
+  button{font-family:inherit;cursor:pointer}
+  .grande{width:100%;font-size:24px;font-weight:bold;padding:18px;border:0;border-radius:14px;background:#e8a317;color:#000;margin-top:14px}
+  .grande:disabled{opacity:.5}
+  .tipos{display:flex;gap:10px;margin-top:8px}
+  .tipos button{flex:1;font-size:19px;font-weight:bold;padding:16px 8px;background:#fff;border:3px solid #999;border-radius:14px;color:#1b1b1b}
+  .tipos button.on{background:#1d4e89;border-color:#1d4e89;color:#fff}
+  .caja{background:#fff;border:2px solid #e3dccb;border-radius:14px;padding:12px 14px;margin-top:12px}
+  .enlace{background:#0F3D33;color:#fff;border-radius:16px;padding:14px;margin-top:12px}
+  .enlace b{color:#e9d9a6}
+  .enlace .acc{display:flex;gap:8px;margin-top:10px}
+  .enlace .acc button,.enlace .acc a{flex:1;text-align:center;text-decoration:none;font-size:17px;font-weight:bold;padding:12px 8px;border-radius:12px;border:0}
+  .wa{background:#25D366;color:#fff}
+  .gris{background:#fff;color:#0F3D33}
+  .prod{background:#fff;border:2px solid #e3dccb;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .prod.off{opacity:.6}
+  .prod .foto{flex:0 0 64px;width:64px;height:64px;border-radius:12px;object-fit:cover;background:#eee;display:flex;align-items:center;justify-content:center;font-size:26px;color:#999}
+  .prod .cab{display:flex;gap:12px;align-items:center}
+  .sw .cam{flex:0 0 auto}
+  .prod .fila{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .prod .n{font-weight:bold;font-size:19px;overflow-wrap:anywhere;min-width:0}
+  .prod .u{font-size:15px;color:#555}
+  .prod .precio{display:flex;align-items:center;gap:6px;margin-top:8px}
+  .prod .precio span{font-weight:bold;font-size:20px}
+  .prod .precio input{font-size:20px;padding:8px 10px;flex:1;min-width:0}
+  .sw{display:flex;gap:8px;margin-top:8px}
+  .sw button{flex:1;font-size:16px;font-weight:bold;padding:11px 6px;border-radius:10px;border:2px solid #999;background:#fff;color:#1b1b1b}
+  .sw button.on{background:#0b6b52;border-color:#0b6b52;color:#fff}
+  .sw button.fr.on{background:#c98a00;border-color:#c98a00}
+  .sw .bor{flex:0 0 auto;border-color:#b3261e;color:#b3261e}
+  .ok{color:#0b6b52;font-size:14px;font-weight:bold;min-height:18px;margin-top:4px}
+  #msg{font-size:20px;text-align:center;margin:14px 0;font-weight:bold}
+  .bien{color:#0b6b52}.mal{color:#b3261e}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chips button{flex:1 1 120px;font-size:17px;font-weight:bold;padding:12px 8px;border-radius:12px;border:3px solid #999;background:#fff;color:#1b1b1b}
+  .chips button.on{background:#0b6b52;border-color:#0b6b52;color:#fff}
+  .cont{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:2px solid #e3dccb;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .cont .q{min-width:0}
+  .cont b{display:block;overflow-wrap:anywhere}
+  .cont small{color:#555}
+  .cont a{flex:0 0 auto;text-decoration:none;font-weight:bold;font-size:17px;padding:10px 14px;border-radius:10px}
+  .cont a.hecho{background:#e3f4ec;color:#0b6b52}
+  .cuenta{font-size:16px;color:#555;margin:6px 0}
+  .vacio{text-align:center;color:#555;font-size:17px;padding:12px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<style>
+  .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
+  .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
+  .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
+  #cm-gate{position:fixed;inset:0;z-index:999;background:#0F3D33;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;font-family:Arial,sans-serif}
+  #cm-gate .m{color:#C9A54B;font-size:13px;letter-spacing:3px;font-weight:bold}
+  #cm-gate h2{margin:6px 0 18px;font-size:24px}
+  #cm-puntos{display:flex;gap:14px;margin-bottom:10px}
+  #cm-puntos i{width:18px;height:18px;border-radius:50%;border:2px solid #C9A54B}
+  #cm-puntos i.on{background:#C9A54B}
+  #cm-err{min-height:22px;color:#ffb4a8;font-weight:bold;margin-bottom:8px;text-align:center}
+  .cm-teclas{display:grid;grid-template-columns:repeat(3,78px);gap:12px}
+  .cm-teclas button{height:68px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:28px;font-weight:bold;cursor:pointer}
+  .cm-teclas button:active{background:rgba(201,165,75,.6)}
+  .cm-teclas .x{font-size:18px;background:transparent}
+  #cm-no{position:fixed;inset:0;z-index:998;background:#F3F1EA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font:20px Arial,sans-serif;text-align:center;padding:20px}
+  [hidden]{display:none!important}
+  #cm-cola{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:998;background:#1b1b1b;color:#fff;font:bold 15px Arial,sans-serif;padding:10px 16px;border-radius:24px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:92vw;text-align:center}
+  #cm-cola.sin{background:#9B2C22}
+</style>
+<div id="cm-cola" hidden></div>
+<div class="cm-barra" id="cm-barra" hidden>
+  <a class="cm-volver" id="cm-volver" href="./" target="_top">⬅ Inicio</a>
+  <span class="cm-quien" id="cm-quien"></span>
+</div>
+<div id="cm-gate" hidden>
+  <div class="m">TIENDA LA FAVORITA</div>
+  <h2>Escriba su clave</h2>
+  <div id="cm-puntos"><i></i><i></i><i></i><i></i></div>
+  <div id="cm-err"></div>
+  <div class="cm-teclas">
+    <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+    <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+    <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+    <button type="button" class="x" data-k="borrar">Borrar</button><button type="button">0</button><span></span>
+  </div>
+</div>
+<div id="cm-no" hidden>
+  <div>🔒 Esta clave no tiene acceso a esta pantalla.</div>
+  <a class="cm-volver" href="./" target="_top">⬅ Ir al inicio</a>
+</div>
+<script>
+var URL_APP = './', PIN = '', ROL = null;
+var EQUIPO = 'x';
+try { PIN = localStorage.getItem('favorita_pin') || ''; } catch (e) {}
+try {
+  EQUIPO = localStorage.getItem('favorita_equipo') || '';
+  if (!EQUIPO) { EQUIPO = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); localStorage.setItem('favorita_equipo', EQUIPO); }
+} catch (e) { EQUIPO = 'x'; }
+function llaveQR(){ return (ROL && ROL.llave) || '@jemsh6074'; }
+function conEquipo(p){ return p ? p + '#' + EQUIPO : ''; }
+function cmG(id){ return document.getElementById(id); }
+// Dentro de la PWA (app instalada): los enlaces entre pantallas se abren dentro de la misma app
+var PWA = '0' === '1';
+if (PWA) document.addEventListener('click', function(ev){
+  var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+  if (!a || a.target === '_blank') return;
+  var h = a.getAttribute('href') || '';
+  if (h.indexOf(URL_APP) !== 0) return;
+  ev.preventDefault();
+  try { window.top.postMessage({ favorita: 'ir', q: h.slice(URL_APP.length) }, '*'); } catch (e) {}
+}, true);
+// Mensajes de WhatsApp: primer nombre bonito ("JHONATAN PEREZ" -> "Jhonatan")
+function nomCorto(n){ var p = String(n || '').trim().split(/\s+/)[0] || ''; return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase(); }
+function saludoWa(n){ return '¡Hola' + (n ? ' ' + nomCorto(n) : '') + '! 👋 Le saluda *Tienda La Favorita* 🐔✨'; }
+var GRACIAS_WA = '¡Gracias por seguir prefiriéndonos! 🙏💛';
+// Línea para pagar desde la casa: llave Bre-B + página con el QR
+function pagoWa(n, v){
+  return '📲 *Puede pagar desde su casa:*\n🔑 Llave Bre-B: *' + llaveQR() + '*\n🧾 Nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0);
+}
+function msgAbono(nombre, valor, medio, saldo, fecha){
+  var f = String(fecha || '').split('-');
+  return saludoWa(nombre) + '\n\nRecibimos su abono, ¡muchas gracias! 🙌\n' + (f.length === 3 ? '📅 ' + f[2] + '/' + f[1] + '/' + f[0] + '\n' : '') +
+    '💵 Abono: *$' + sep(valor) + '* (' + medio + ')\n' +
+    (saldo > 0 ? '💰 Le queda pendiente: *$' + sep(saldo) + '*' : '🎉 ¡Quedó a paz y salvo! Su cuenta está en cero.') +
+    '\n\n' + GRACIAS_WA;
+}
+function guardarPin(p){ PIN = p; try { localStorage.setItem('favorita_pin', p); } catch (e) {} }
+function salir(){ try { localStorage.removeItem('favorita_pin'); localStorage.removeItem('favorita_rol'); localStorage.removeItem('favorita_inicio'); } catch (e) {} PIN = ''; }
+// ----- Sin internet: lo que se guarda queda en el celular y se manda solo cuando vuelve la señal -----
+var COLA_FN = { guardarCuadre: 1, guardarMov: 1, guardarPago: 1 }, ENVIANDO = false, OK_HASTA = 0;
+function sinRed(e){ return !navigator.onLine || /NetworkError|HTTP 0|network|Failed to fetch|conexi[oó]n/i.test((e && e.message) || ''); }
+function leerCola(){ try { return JSON.parse(localStorage.getItem('favorita_cola') || '[]'); } catch (e) { return []; } }
+function escribirCola(c){ try { localStorage.setItem('favorita_cola', JSON.stringify(c)); } catch (e) {} pintarCola(); }
+function aCola(fn, args){
+  var a = args[0], h = new Date();
+  a.hora = ('0' + h.getHours()).slice(-2) + ':' + ('0' + h.getMinutes()).slice(-2) + ':' + ('0' + h.getSeconds()).slice(-2);
+  OK_HASTA = 0;
+  var c = leerCola(); c.push({ fn: fn, args: args, k: a._k }); escribirCola(c);
+}
+function pintarCola(){
+  var el = cmG('cm-cola'); if (!el || Date.now() < OK_HASTA) return;
+  var n = leerCola().length, sin = !navigator.onLine;
+  el.hidden = !n && !sin;
+  el.className = sin ? 'sin' : '';
+  var cosas = n + (n === 1 ? ' cosa' : ' cosas');
+  el.textContent = sin ? '📴 Sin internet' + (n ? ' · ' + cosas + ' por enviar. No cierre la app' : '')
+    : ENVIANDO ? '⏳ Enviando ' + cosas + ' guardadas sin internet...' : '⏳ ' + cosas + ' por enviar · se reintenta sola';
+}
+function enviarCola(){
+  pintarCola();
+  if (ENVIANDO || !navigator.onLine || !PIN) return;
+  var c = leerCola(); if (!c.length) return;
+  var it = c[0]; ENVIANDO = true; pintarCola();
+  google.script.run.withSuccessHandler(function(){
+    ENVIANDO = false;
+    escribirCola(leerCola().filter(function(x){ return x.k !== it.k; }));
+    if (!leerCola().length) { var el = cmG('cm-cola'); el.hidden = false; el.className = ''; el.textContent = '✅ Ya se envió todo lo guardado sin internet'; OK_HASTA = Date.now() + 4000; setTimeout(pintarCola, 4100); return; }
+    enviarCola();
+  }).withFailureHandler(function(e){
+    ENVIANDO = false;
+    if (sinRed(e) || /Clave|intentos/.test(e.message || '')) { pintarCola(); return; }   // se reintenta después
+    escribirCola(leerCola().filter(function(x){ return x.k !== it.k; }));
+    alert('No se pudo enviar algo guardado sin internet (' + it.fn + ' ' + JSON.stringify(it.args[0]).slice(0, 120) + '): ' + e.message + '. Anótelo de nuevo.');
+    enviarCola();
+  }).api(conEquipo(PIN), it.fn, it.args);
+}
+window.addEventListener('online', enviarCola);
+window.addEventListener('offline', function(){ OK_HASTA = 0; pintarCola(); });
+setInterval(enviarCola, 20000);
+setTimeout(enviarCola, 1500);
+
+// Igual que google.script.run, pero pasa la clave al servidor
+function srv(){
+  var ok = null, mal = null;
+  var o = { withSuccessHandler: function(f){ ok = f; return p; }, withFailureHandler: function(f){ mal = f; return p; } };
+  var p = new Proxy(o, { get: function(t, k){
+    if (k in t) return t[k];
+    return function(){
+      var args = [].slice.call(arguments), cola = COLA_FN[k] && args[0] && typeof args[0] === 'object';
+      if (cola && !args[0]._k) args[0]._k = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      var guardarSinRed = function(){
+        aCola(k, args);
+        if (mal) mal({ cola: true, message: '📴 Sin internet: quedó guardado en el celular y se envía solo cuando vuelva la señal. No cierre la app.' });
+      };
+      if (cola && !navigator.onLine) { guardarSinRed(); return; }
+      var r = google.script.run;
+      if (ok) r = r.withSuccessHandler(ok);
+      r = r.withFailureHandler(function(e){
+        if (cola && sinRed(e)) { guardarSinRed(); return; }
+        if (/Clave incorrecta/.test(e.message)) salir();
+        if (mal) mal(e);
+      });
+      r.api(conEquipo(PIN), k, args);
+    };
+  }});
+  return p;
+}
+function mostrar(r, fn){
+  ROL = r;
+  cmG('cm-gate').hidden = true;
+  if (r.paginas.indexOf(PAGINA) < 0) { cmG('cm-no').hidden = false; return false; }
+  cmG('cm-no').hidden = true;
+  cmG('cm-barra').hidden = false;
+  cmG('cm-volver').hidden = PAGINA === 'inicio';
+  cmG('cm-quien').textContent = '🔓 ' + r.nombre;
+  if (fn) fn();
+  return true;
+}
+function iniciar(fn){
+  if (!PIN) { pedirClave(fn); return; }
+  var guardado = null;
+  try { guardado = JSON.parse(localStorage.getItem('favorita_rol') || 'null'); } catch (e) {}
+  // Si ya se conoce la clave, la pantalla arranca de una vez y se verifica al mismo tiempo
+  var ya = guardado ? mostrar(guardado, fn) : false;
+  google.script.run.withSuccessHandler(function(r){
+    if (r && r.bloqueado) { salir(); pedirClave(fn, '⛔ Demasiados intentos. Espere ' + r.bloqueado + ' min.'); return; }
+    if (!r) { salir(); pedirClave(fn, 'La clave cambió. Escríbala de nuevo.'); return; }
+    try { localStorage.setItem('favorita_rol', JSON.stringify(r)); } catch (e) {}
+    if (!guardado) mostrar(r, fn);
+    else if (JSON.stringify(guardado) !== JSON.stringify(r)) mostrar(r, ya ? null : fn);   // si con lo guardado no podía entrar y ahora sí, carga
+  }).withFailureHandler(function(e){
+    if (!guardado) pedirClave(fn, 'Sin conexión. Intente otra vez.');
+  }).api(conEquipo(PIN), 'rol', []);
+}
+function pedirClave(fn, aviso){
+  var g = cmG('cm-gate'), dig = '';
+  g.hidden = false; cmG('cm-err').textContent = aviso || '';
+  var puntos = cmG('cm-puntos').children;
+  function pintar(){ for (var i = 0; i < 4; i++) puntos[i].className = i < dig.length ? 'on' : ''; }
+  pintar();
+  g.querySelectorAll('.cm-teclas button').forEach(function(b){
+    b.onclick = function(){
+      if (b.getAttribute('data-k') === 'borrar') { dig = dig.slice(0, -1); pintar(); return; }
+      if (dig.length >= 4) return;
+      dig += b.textContent; pintar(); cmG('cm-err').textContent = '';
+      if (dig.length === 4) {
+        cmG('cm-err').textContent = 'Revisando...';
+        google.script.run.withSuccessHandler(function(r){
+          if (r && r.bloqueado) { dig = ''; pintar(); cmG('cm-err').textContent = '⛔ Demasiados intentos. Espere ' + r.bloqueado + ' min.'; return; }
+          if (!r) { dig = ''; pintar(); cmG('cm-err').textContent = 'Clave incorrecta'; return; }
+          guardarPin(dig); iniciar(fn);
+        }).withFailureHandler(function(){ dig = ''; pintar(); cmG('cm-err').textContent = 'Sin conexión. Intente otra vez.'; })
+          .api(conEquipo(dig), 'rol', []);
+      }
+    };
+  });
+}
+</script>
+
+<h1>Catálogo y avisos</h1>
+
+<div class="tipos" id="modos">
+  <button type="button" class="on" data-m="prod">🛒 PRODUCTOS</button>
+  <button type="button" data-m="avisar">📣 AVISAR A CLIENTES</button>
+</div>
+
+<!-- ===== PRODUCTOS ===== -->
+<div id="fProd">
+  <div class="enlace">
+    🛒 <b>Su catálogo para clientes</b><br><span style="font-size:15px">Los clientes escogen y le llega el pedido a su WhatsApp</span>
+    <div class="acc"><a class="wa" id="btnCompartir" target="_blank" rel="noopener">📲 Compartir</a><a class="gris" id="btnVer" target="_blank" rel="noopener">👀 Ver</a></div>
+  </div>
+  <div class="caja" id="boxWa">
+    <label for="waTienda" style="margin-top:0">📞 WhatsApp donde llegan los pedidos</label>
+    <div style="display:flex;gap:8px"><input id="waTienda" type="tel" inputmode="tel" placeholder="3001234567"><button type="button" class="grande" id="btnWa" style="width:auto;margin:0;padding:10px 16px;font-size:18px">OK</button></div>
+  </div>
+
+  <h2>Productos</h2>
+  <div class="ayuda" style="margin-bottom:8px">Cambie el precio y toque fuera de la casilla. <b>🐟 Fresco hoy</b> se apaga solo cada noche.</div>
+  <div id="lista"></div>
+
+  <h2>➕ Agregar producto</h2>
+  <div class="caja">
+    <label for="nNom" style="margin-top:0">Nombre</label><input id="nNom" autocomplete="off" placeholder="Ej: Bocachico">
+    <label for="nCat">Categoría</label><input id="nCat" list="dlCats" autocomplete="off" placeholder="Ej: Pescados">
+    <label for="nU">Se vende por</label><input id="nU" list="dlU" autocomplete="off" placeholder="Libra, unidad, bandeja...">
+    <label for="nP">Precio</label><input id="nP" inputmode="numeric" autocomplete="off">
+    <button type="button" class="grande" id="btnNuevo">AGREGAR</button>
+  </div>
+</div>
+
+<!-- ===== AVISAR ===== -->
+<div id="fAvisar" hidden>
+  <label>¿Qué quiere avisar?</label>
+  <div class="chips" id="plantillas">
+    <button type="button" class="on" data-v="fresco">🐟 Llegó fresco</button>
+    <button type="button" data-v="promo">🔥 Promoción</button>
+    <button type="button" data-v="libre">✍️ Mensaje libre</button>
+  </div>
+  <div class="caja" id="boxFresco">
+    <b>¿Qué llegó fresco hoy?</b> <span class="ayuda">Toque para marcar o quitar</span>
+    <div class="chips" id="chFresco" style="margin-top:8px"></div>
+  </div>
+  <label for="texto">Mensaje<span class="ayuda">Puede cambiarlo antes de enviar</span></label>
+  <textarea id="texto" rows="8"></textarea>
+  <a class="grande wa" id="btnGrupo" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;color:#fff">📢 Enviar a un grupo o a su estado</a>
+
+  <h2>Enviar a cada cliente</h2>
+  <div class="cuenta" id="cuenta"></div>
+  <div id="contactos"></div>
+
+  <h2>➕ Agregar contacto</h2>
+  <div class="caja">
+    <label for="cNom" style="margin-top:0">Nombre</label><input id="cNom" autocomplete="off">
+    <label for="cTel">Celular</label><input id="cTel" type="tel" inputmode="tel">
+    <button type="button" class="grande" id="btnContacto">GUARDAR CONTACTO</button>
+  </div>
+</div>
+
+<div id="msg"></div>
+<input type="file" id="fotoIn" accept="image/*" capture="environment" hidden>
+<datalist id="dlCats"></datalist>
+<datalist id="dlU"><option value="Libra"><option value="Kilo"><option value="Unidad"><option value="Bandeja"><option value="Paquete"></datalist>
+
+<script>
+var PAGINA = 'catalogo';
+var D = { items: [], contactos: [], whatsapp: '', url: '' }, PLANT = 'fresco', HOY = new Date().toISOString().slice(0, 10);
+function $(id){ return document.getElementById(id); }
+function num(x){ return typeof x === 'number' ? x : (Number(String(x || '').replace(/\D/g, '')) || 0); }
+function sep(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+function fmt(n){ return '$' + sep(n); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function titulo(s){ return String(s).toLowerCase().replace(/(^|\s)\S/g, function(c){ return c.toUpperCase(); }).replace(/ (De|En|La|El|Y|X|Por|Con|Del) /g, function(m){ return m.toLowerCase(); }); }
+function msg(t, c){ $('msg').textContent = t; $('msg').className = c || ''; }
+function wa(tel, t){ var n = String(tel || '').replace(/\D/g, ''); if (n.length === 10) n = '57' + n; return 'https://wa.me/' + n + '?text=' + encodeURIComponent(t); }
+function enlace(){ return D.url + '?p=tienda'; }
+
+document.querySelectorAll('#modos button').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('#modos button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    $('fProd').hidden = b.getAttribute('data-m') !== 'prod'; $('fAvisar').hidden = b.getAttribute('data-m') !== 'avisar'; msg('');
+    if (!$('fAvisar').hidden) armarMensaje();
+  };
+});
+
+// ---------- Productos ----------
+function guardar(p, cambios, aviso){
+  var d = { antes: p.n, n: p.n, cat: p.cat, u: p.u, precio: p.precio, disp: p.disp, fresco: p.fresco, orden: p.orden };
+  for (var k in cambios) d[k] = cambios[k];
+  if (aviso) aviso.textContent = 'Guardando...';
+  srv().withSuccessHandler(function(r){ pintar(r); msg(cambios.borrar ? '🗑️ Producto quitado' : '', 'bien'); })
+    .withFailureHandler(function(e){ msg('No se guardó: ' + e.message, 'mal'); if (aviso) aviso.textContent = ''; })
+    .guardarProducto(d);
+}
+function pintarLista(){
+  $('lista').innerHTML = D.items.length ? D.items.map(function(p, i){
+    return '<div class="prod' + (p.disp ? '' : ' off') + '" data-i="' + i + '"><div class="cab">' +
+      (p.foto ? '<img class="foto" alt="" src="' + fotoUrl(p.foto, 200) + '">' : '<div class="foto">📷</div>') +
+      '<div class="n">' + esc(titulo(p.n)) + '<div class="u">' + esc(p.cat) + ' · por ' + esc(p.u || '—') + '</div></div></div>' +
+      '<div class="precio"><span>$</span><input class="pre" inputmode="numeric" value="' + (p.precio ? sep(p.precio) : '') + '" placeholder="Precio"></div>' +
+      '<div class="sw"><button type="button" class="dis' + (p.disp ? ' on' : '') + '">' + (p.disp ? '✅ Hay' : '⛔ No hay') + '</button>' +
+      '<button type="button" class="fr' + (p.fresco ? ' on' : '') + '">🐟 Fresco</button><button type="button" class="cam">📷 Foto</button><button type="button" class="bor">🗑️</button></div>' +
+      '<div class="ok"></div></div>';
+  }).join('') : '<div class="vacio">No hay productos</div>';
+  $('lista').querySelectorAll('.prod').forEach(function(el){
+    var p = D.items[+el.getAttribute('data-i')], ok = el.querySelector('.ok'), pre = el.querySelector('.pre');
+    pre.oninput = function(){ var n = num(pre.value); pre.value = n ? sep(n) : ''; };
+    pre.onchange = function(){ guardar(p, { precio: num(pre.value) }, ok); };
+    el.querySelector('.dis').onclick = function(){ guardar(p, { disp: !p.disp }, ok); };
+    el.querySelector('.fr').onclick = function(){ guardar(p, { fresco: !p.fresco }, ok); };
+    el.querySelector('.cam').onclick = function(){ FOTO_P = p; FOTO_OK = ok; $('fotoIn').value = ''; $('fotoIn').click(); };
+    var bor = el.querySelector('.bor');
+    bor.onclick = function(){
+      if (bor.getAttribute('data-ok')) guardar(p, { borrar: true }, ok);
+      else { bor.setAttribute('data-ok', '1'); bor.textContent = '¿Quitar?'; }
+    };
+  });
+  var cats = D.items.map(function(p){ return p.cat; }).filter(function(c, i, a){ return a.indexOf(c) === i; });
+  $('dlCats').innerHTML = cats.map(function(c){ return '<option value="' + esc(c) + '">'; }).join('');
+}
+// ---------- Foto del producto ----------
+var FOTO_P = null, FOTO_OK = null;
+function fotoUrl(id, w){ return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + (w || 600); }
+$('fotoIn').onchange = function(){
+  var f = $('fotoIn').files[0]; if (!f || !FOTO_P) return;
+  var img = new Image(), u = URL.createObjectURL(f), ok = FOTO_OK;
+  if (ok) ok.textContent = 'Subiendo foto...';
+  img.onload = function(){
+    var k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+    srv().withSuccessHandler(function(r){ pintar(r); msg('✅ Foto de ' + titulo(FOTO_P.n) + ' guardada', 'bien'); })
+      .withFailureHandler(function(e){ if (ok) ok.textContent = ''; msg('No se guardó la foto: ' + e.message, 'mal'); })
+      .guardarFoto(FOTO_P.n, c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+  };
+  img.src = u;
+};
+
+$('nP').oninput = function(){ var n = num($('nP').value); $('nP').value = n ? sep(n) : ''; };
+$('btnNuevo').onclick = function(){
+  var n = $('nNom').value.trim();
+  if (!n) { msg('Escriba el nombre del producto', 'mal'); $('nNom').focus(); return; }
+  $('btnNuevo').disabled = true;
+  srv().withSuccessHandler(function(r){
+    $('btnNuevo').disabled = false; pintar(r); msg('✅ ' + titulo(n) + ' agregado', 'bien');
+    $('nNom').value = ''; $('nCat').value = ''; $('nU').value = ''; $('nP').value = '';
+  }).withFailureHandler(function(e){ $('btnNuevo').disabled = false; msg('No se guardó: ' + e.message, 'mal'); })
+    .guardarProducto({ n: n, cat: $('nCat').value.trim() || 'Otros', u: $('nU').value.trim(), precio: num($('nP').value), disp: true, fresco: false });
+};
+$('btnWa').onclick = function(){
+  var t = $('waTienda').value.replace(/\D/g, '');
+  if (t.length < 10) { msg('Escriba el celular completo, 10 números', 'mal'); return; }
+  srv().withSuccessHandler(function(r){ pintar(r); msg('✅ WhatsApp de la tienda guardado', 'bien'); })
+    .withFailureHandler(function(e){ msg('No se guardó: ' + e.message, 'mal'); }).guardarWhatsapp(t);
+};
+
+// ---------- Avisar ----------
+function lineaProd(p){ return '• ' + titulo(p.n) + (p.precio ? ' a ' + fmt(p.precio) + (p.u ? ' la ' + p.u.toLowerCase() : '') : ''); }
+function armarMensaje(){
+  var fr = D.items.filter(function(p){ return p.fresco; });
+  $('boxFresco').hidden = PLANT !== 'fresco';
+  $('chFresco').innerHTML = D.items.map(function(p, i){ return '<button type="button" class="' + (p.fresco ? 'on' : '') + '" data-i="' + i + '">' + esc(titulo(p.n)) + '</button>'; }).join('');
+  $('chFresco').querySelectorAll('button').forEach(function(b){
+    b.onclick = function(){ var p = D.items[+b.getAttribute('data-i')]; b.disabled = true; guardar(p, { fresco: !p.fresco }); };
+  });
+  var t;
+  if (PLANT === 'fresco') t = saludoWa('') + '\n\n🥬 *¡Llegó mercancía fresca!* 🐟\n\n' +
+    (fr.length ? 'Hoy tenemos:\n' + fr.map(lineaProd).join('\n') : 'Hoy tenemos productos frescos.') +
+    '\n\n🛒 Haga su pedido aquí y se lo llevamos 🛵\n👉 ' + enlace() + '\n\n' + GRACIAS_WA;
+  else if (PLANT === 'promo') t = saludoWa('') + '\n\n🔥 *¡Tenemos promoción!*\n\n(Escriba aquí la promoción)\n\n🛒 Pida aquí y se lo llevamos 🛵\n👉 ' + enlace() + '\n\n' + GRACIAS_WA;
+  else t = saludoWa('') + '\n\n\n\n🛒 Pida aquí 👉 ' + enlace() + '\n\n' + GRACIAS_WA;
+  $('texto').value = t; actualizarEnvios();
+}
+document.querySelectorAll('#plantillas button').forEach(function(b){
+  b.onclick = function(){ document.querySelectorAll('#plantillas button').forEach(function(x){ x.classList.toggle('on', x === b); }); PLANT = b.getAttribute('data-v'); armarMensaje(); };
+});
+function enviados(){ try { return JSON.parse(localStorage.getItem('favorita_env_' + HOY) || '{}'); } catch (e) { return {}; } }
+function actualizarEnvios(){
+  var t = $('texto').value, env = enviados();
+  $('btnGrupo').href = wa('', t);
+  var n = 0;
+  $('contactos').innerHTML = D.contactos.length ? D.contactos.map(function(c){
+    var h = env[c.tel]; if (h) n++;
+    return '<div class="cont"><div class="q"><b>' + esc(titulo(c.n)) + '</b><small>' + esc(c.tel) + '</small></div>' +
+      '<a class="' + (h ? 'hecho' : 'wa') + '" data-t="' + esc(c.tel) + '" target="_blank" rel="noopener" href="' + esc(wa(c.tel, t)) + '">' + (h ? '✓ Enviado' : '📲 Enviar') + '</a></div>';
+  }).join('') : '<div class="vacio">Todavía no hay clientes con celular. Agréguelos abajo o en Clientes.</div>';
+  $('cuenta').textContent = D.contactos.length ? 'Enviados hoy: ' + n + ' de ' + D.contactos.length : '';
+  $('contactos').querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click', function(){
+      var e = enviados(); e[a.getAttribute('data-t')] = 1;
+      try { localStorage.setItem('favorita_env_' + HOY, JSON.stringify(e)); } catch (x) {}
+      setTimeout(actualizarEnvios, 300);
+    });
+  });
+}
+$('texto').addEventListener('input', actualizarEnvios);
+$('btnContacto').onclick = function(){
+  var n = $('cNom').value.trim(), t = $('cTel').value.replace(/\D/g, '');
+  if (!n || t.length < 10) { msg('Escriba el nombre y el celular de 10 números', 'mal'); return; }
+  srv().withSuccessHandler(function(r){ pintar(r); msg('✅ Contacto guardado', 'bien'); $('cNom').value = ''; $('cTel').value = ''; })
+    .withFailureHandler(function(e){ msg('No se guardó: ' + e.message, 'mal'); }).guardarContacto(n, t);
+};
+
+function pintar(r){
+  D = r;
+  $('waTienda').value = r.whatsapp || '';
+  $('boxWa').style.borderColor = r.whatsapp ? '' : '#b3261e';
+  $('btnCompartir').href = wa('', '¡Hola! 👋 Ahora puede hacer su pedido en *Tienda La Favorita* 🐔✨ desde el celular y se lo llevamos 🛵\n\n👉 ' + enlace() + '\n\n' + GRACIAS_WA);
+  $('btnVer').href = enlace();
+  pintarLista();
+  if (!$('fAvisar').hidden) armarMensaje();
+}
+function cargar(){
+  srv().withSuccessHandler(pintar).withFailureHandler(function(e){ msg('Error: ' + e.message, 'mal'); }).catalogoAdmin();
+}
+iniciar(cargar);
+</script>
+</body>
+</html>
