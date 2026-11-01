@@ -12,6 +12,7 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
+  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
   var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
@@ -36,6 +37,8 @@
     }
     if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
     if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var yaMostro = false;
+    if (lect && viejo !== undefined && RAPIDO.indexOf(args[1]) >= 0 && ok) { yaMostro = true; setTimeout(function(){ ok(viejo); }, 0); }
     var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
     fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
       .then(function(r){ return r.text(); })
@@ -44,9 +47,10 @@
         var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
         if (!j.ok) { falla(j.err || 'Error'); return; }
         if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (yaMostro && JSON.stringify(j.r) === JSON.stringify(viejo)) return;   // no cambió nada
         if (ok) ok(j.r);
       })
-      .catch(function(){ clearTimeout(t); sinSenal(); });
+      .catch(function(){ clearTimeout(t); if (!yaMostro) sinSenal(); });
   }
   function runner(ok, mal){
     return new Proxy({}, { get: function(_, k){
@@ -114,6 +118,7 @@
 <body>
 <div class="top">
 <style>
+  .cv{color:#14774E!important}.cc{color:#B3261E!important}.cg{color:#C2410C!important}   /* venta verde · compra rojo · gasto naranja */
   .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
   .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
   .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}

@@ -12,6 +12,7 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
+  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
   var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
@@ -36,6 +37,8 @@
     }
     if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
     if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var yaMostro = false;
+    if (lect && viejo !== undefined && RAPIDO.indexOf(args[1]) >= 0 && ok) { yaMostro = true; setTimeout(function(){ ok(viejo); }, 0); }
     var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
     fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
       .then(function(r){ return r.text(); })
@@ -44,9 +47,10 @@
         var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
         if (!j.ok) { falla(j.err || 'Error'); return; }
         if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (yaMostro && JSON.stringify(j.r) === JSON.stringify(viejo)) return;   // no cambió nada
         if (ok) ok(j.r);
       })
-      .catch(function(){ clearTimeout(t); sinSenal(); });
+      .catch(function(){ clearTimeout(t); if (!yaMostro) sinSenal(); });
   }
   function runner(ok, mal){
     return new Proxy({}, { get: function(_, k){
@@ -86,7 +90,8 @@
   .qr .tot{font-size:clamp(20px,6vw,26px);font-weight:800;white-space:nowrap}
   .qr .n{font-size:12px;color:#cfe0da}
   .qr .comp{font-weight:700;line-height:1.25}.qr .comp.sube{color:#9ff0c4}.qr .comp.baja{color:#ffb4a8}
-  .qr .mes{border-top:1px solid rgba(201,165,75,.35);margin-top:5px;padding-top:4px;color:#e9d9a6;font-weight:700}
+  .qr .mes{border-top:1px solid rgba(201,165,75,.35);margin-top:5px;padding-top:4px;color:#e9d9a6;font-weight:700;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 12px}
+  .qr .mes .ant{color:#cfe0da;font-weight:600}
   .vivo{width:8px;height:8px;border-radius:50%;background:#4cd18f;animation:pulso 2s infinite}
   @keyframes pulso{0%{box-shadow:0 0 0 0 rgba(76,209,143,.6)}70%{box-shadow:0 0 0 8px rgba(76,209,143,0)}100%{box-shadow:0 0 0 0 rgba(76,209,143,0)}}
   @media (prefers-reduced-motion:reduce){.vivo{animation:none}}
@@ -110,7 +115,8 @@
   .mv .c small{color:var(--suave);font-size:12px}
   .mv .v{font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
   .k-qr .ic,.k-abono .ic{background:#E8F3EE;color:var(--verde2)}.k-qr .v,.k-abono .v{color:var(--verde2)}
-  .k-pago .ic{background:#F8E6E3;color:var(--rojo)}.k-pago .v{color:var(--rojo)}
+  .k-pago .ic{background:#F8E6E3;color:#B3261E}.k-pago .v{color:#B3261E}
+  .k-gasto .ic{background:#FDEBDD;color:#C2410C}.k-gasto .v{color:#C2410C}
   .k-deuda .ic{background:#FFF4D6;color:#8a5a00}.k-deuda .v{color:#8a5a00}
   .vacio{color:var(--suave);text-align:center;padding:10px 0}
   .mas-mov{width:100%;border:0;background:#eef6f2;color:var(--verde2);font-weight:700;border-radius:10px;padding:10px;margin-top:6px}
@@ -182,6 +188,7 @@
 <body>
 <div class="top" id="top">
 <style>
+  .cv{color:#14774E!important}.cc{color:#B3261E!important}.cg{color:#C2410C!important}   /* venta verde · compra rojo · gasto naranja */
   .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
   .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
   .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
@@ -421,7 +428,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 28-oct-2026 rapida</div>
+  <div class="version">Versión 1-nov-2026 colores</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
@@ -578,12 +585,13 @@ function pintarQR(q){
     comp.textContent = (dif >= 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + ' vs el ' + q.diaAntes + ' pasado';
     comp.className = 'n comp ' + (dif >= 0 ? 'sube' : 'baja');
   } else comp.textContent = '';
-  $('qrMes').textContent = q.mes != null ? 'Mes: ' + fmt(q.mes) : '';
+  $('qrMes').innerHTML = q.mes != null ? (q.mesPasado ? '<span class="ant">Mes pasado: ' + fmt(q.mesPasado) + '</span>' : '') + '<span>Mes: ' + fmt(q.mes) + '</span>' : '';
 }
 function filaMov(m){
   var pos = m.v >= 0, ini = String(m.n || '?').charAt(0);
   var signo = m.k === 'deuda' ? '' : pos ? '+' : '−';
-  return '<div class="mv k-' + m.k + '"><span class="ic">' + esc(ini) + '</span><div class="c"><b>' + esc(m.n) + '</b><small>' + esc(m.d) + '</small></div>' +
+  var k = m.k === 'pago' && String(m.d).indexOf('Compra') !== 0 ? 'gasto' : m.k;
+  return '<div class="mv k-' + k + '"><span class="ic">' + esc(ini) + '</span><div class="c"><b>' + esc(m.n) + '</b><small>' + esc(m.d) + '</small></div>' +
     '<span class="v">' + signo + '$' + sep(m.v) + '</span></div>';
 }
 function pintar(r){
@@ -773,7 +781,7 @@ function guardarCierre(){
     var t = '📊 *Cuadre del día - Tienda La Favorita* 🐔\n📅 ' + fechaBonita(d.fecha) + '\n\n' +
       '💵 Plata en caja: ' + fmt(num(r.efectivo)) + '\n🛒 Compras de la caja: ' + fmt(num(r.compra)) + '\n🧾 Gastos de la caja: ' + fmt(num(r.gastos)) + '\n' +
       '👜 Jems sacó: ' + fmt(num(r.retiro)) + '\n🙋 Raúl sacó: ' + fmt(num(r.raul)) + '\n🏦 Base: ' + fmt(num(r.base)) + '\n📱 Pagos QR: ' + fmt(num(r.transf)) + '\n\n' +
-      '*✅ VENTA DEL DÍA: ' + fmt(v) + '*' + (meta ? '\n' + (v >= meta ? '🎉 ¡Llegamos a la meta de ' + fmt(meta) + '!' : '🎯 ' + Math.round(v / meta * 100) + '% de la meta de ' + fmt(meta)) : '') + (r.nota ? '\n\n✏️ ' + r.nota : '') + '\n\n¡Buen trabajo hoy! 💪';
+      '*✅ VENTA DEL DÍA: ' + fmt(v) + '*' + (meta ? '\n' + (v >= meta ? '🎉 ¡Llegamos a la meta de ' + fmt(meta) + '!' : '🎯 ' + Math.round(v / meta * 100) + '% de la meta de ' + fmt(meta)) : '') + (function(){ var u = num(r.venta) - num(r.compra) - num(r.gastos); return '\n💰 Utilidad del día: *' + (u < 0 ? '-' : '') + fmt(Math.abs(u)) + '* (venta − compras − gastos)'; })() + (r.mes && r.mes.dias ? '\n📈 Venta del mes (' + r.mes.dias + (r.mes.dias === 1 ? ' día' : ' días') + '): *' + fmt(num(r.mes.v)) + '*' : '') + (r.mes && r.mes.qr ? '\n📱 QR del mes: *' + fmt(num(r.mes.qr)) + '*' : '') + (r.nota ? '\n\n✏️ ' + r.nota : '') + '\n\n¡Buen trabajo hoy! 💪';
     listo('Venta del día: ' + fmt(v), meta ? (v >= meta ? '🎉 ¡Llegó a la meta!' : Math.round(v / meta * 100) + '% de la meta') : '', 'https://wa.me/?text=' + encodeURIComponent(t));
     cargar(true);
   }).withFailureHandler(function(e){

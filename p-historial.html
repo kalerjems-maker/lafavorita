@@ -12,6 +12,7 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
+  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
   var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
@@ -36,6 +37,8 @@
     }
     if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
     if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var yaMostro = false;
+    if (lect && viejo !== undefined && RAPIDO.indexOf(args[1]) >= 0 && ok) { yaMostro = true; setTimeout(function(){ ok(viejo); }, 0); }
     var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
     fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
       .then(function(r){ return r.text(); })
@@ -44,9 +47,10 @@
         var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
         if (!j.ok) { falla(j.err || 'Error'); return; }
         if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (yaMostro && JSON.stringify(j.r) === JSON.stringify(viejo)) return;   // no cambió nada
         if (ok) ok(j.r);
       })
-      .catch(function(){ clearTimeout(t); sinSenal(); });
+      .catch(function(){ clearTimeout(t); if (!yaMostro) sinSenal(); });
   }
   function runner(ok, mal){
     return new Proxy({}, { get: function(_, k){
@@ -111,6 +115,7 @@
 <body>
 <div class="top">
 <style>
+  .cv{color:#14774E!important}.cc{color:#B3261E!important}.cg{color:#C2410C!important}   /* venta verde · compra rojo · gasto naranja */
   .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
   .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
   .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
@@ -320,11 +325,11 @@ function pedirClave(fn, aviso){
   <div id="todo" hidden style="display:flex;flex-direction:column;gap:12px">
     <div class="carta">
       <div class="etq">Total vendido</div>
-      <div class="grande" id="tVentas">$0</div>
+      <div class="grande cv" id="tVentas">$0</div>
       <div class="sub" id="tDias"></div>
       <div class="res">
-        <div><small>COMPRAS</small><b id="tCompras">$0</b></div>
-        <div><small>GASTOS</small><b id="tGastos">$0</b></div>
+        <div><small>COMPRAS</small><b class="cc" id="tCompras">$0</b></div>
+        <div><small>GASTOS</small><b class="cg" id="tGastos">$0</b></div>
         <div><small id="tQuedaL">QUEDA</small><b id="tQueda">$0</b></div>
       </div>
     </div>
@@ -351,6 +356,13 @@ $('ant').addEventListener('click', function(){ moverMes(-1); });
 $('sig').addEventListener('click', function(){ moverMes(1); });
 $('buscar').addEventListener('input', function(){ lista(); });
 
+var PRECARGADO = {};
+// Deja listo el mes anterior para que la flecha ‹ abra al instante
+function precargar(){
+  var p = MES.split('-'), d = new Date(+p[0], +p[1] - 2, 1), m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  if (PRECARGADO[m]) return; PRECARGADO[m] = 1;
+  setTimeout(function(){ srv().withSuccessHandler(function(){}).withFailureHandler(function(){}).historial(m); }, 1500);
+}
 function cargar(){
   $('titulo').textContent = 'Cargando...'; $('sig').disabled = MES >= ACTUAL;
   srv().withSuccessHandler(pintar)
@@ -358,6 +370,8 @@ function cargar(){
     .historial(MES);
 }
 function pintar(r){
+  if (r && r.mes && r.mes !== MES) return;   // llegó tarde un mes que ya no se está viendo
+  precargar();
   D = r; $('cargando').hidden = true; $('todo').hidden = false;
   $('titulo').textContent = r.titulo;
   $('tVentas').textContent = fmt(r.ventas);
@@ -378,15 +392,15 @@ function lista(){
   });
   $('lista').innerHTML = ds.length ? ds.map(function(x){
     var p = x.f.split('-'), abierto = ABIERTO === x.f, meta = D.metaDia > 0 && x.venta >= D.metaDia;
-    var h = '<div class="dia" data-f="' + x.f + '"><div class="t"><b>' + x.dia + ' ' + (+p[2]) + '<small>de ' + MESES[+p[1] - 1] + '</small></b><span class="v">' + fmt(x.venta) + '</span></div>' +
+    var h = '<div class="dia" data-f="' + x.f + '"><div class="t"><b>' + x.dia + ' ' + (+p[2]) + '<small>de ' + MESES[+p[1] - 1] + '</small></b><span class="v cv">' + fmt(x.venta) + '</span></div>' +
       '<div class="chips"><span>💵 ' + fmt(x.efectivo) + '</span>' + (x.qr ? '<span>📲 QR ' + fmt(x.qr) + '</span>' : '') +
-      (x.compra ? '<span>🛒 ' + fmt(x.compra) + '</span>' : '') + (meta ? '<span class="m">🎯 Meta</span>' : '') + '</div>';
+      (x.compra ? '<span class="cc">🛒 ' + fmt(x.compra) + '</span>' : '') + (meta ? '<span class="m">🎯 Meta</span>' : '') + '</div>';
     if (abierto) {
       var f = function(a, b, c){ return '<div class="f"><span>' + a + '</span><b' + (c ? ' class="' + c + '"' : '') + '>' + b + '</b></div>'; };
       h += '<div class="det">' + f('🏦 Base (plata al abrir)', fmt(x.base)) + f('💵 Plata contada al cerrar', fmt(x.efectivo)) + f('📲 Pagos QR', fmt(x.qr)) +
-        f('🛒 Compras de la caja', '−' + fmt(x.compra), 'neg') + f('🧾 Gastos de la caja', '−' + fmt(x.gasto), 'neg') +
+        f('🛒 Compras de la caja', '−' + fmt(x.compra), 'cc') + f('🧾 Gastos de la caja', '−' + fmt(x.gasto), 'cg') +
         f('👜 Jems sacó', fmt(x.jems)) + f('🙋 Raúl sacó', fmt(x.raul)) + f('🤝 Abonos de clientes', fmt(x.abonos)) + f('📝 Deudas nuevas', fmt(x.deudas)) +
-        f('<b>✅ Venta del día</b>', fmt(x.venta), 'pos') + (x.nota ? '<div class="nota">✏️ ' + esc(x.nota) + '</div>' : '') +
+        f('<b>✅ Venta del día</b>', fmt(x.venta), 'cv') + (x.nota ? '<div class="nota">✏️ ' + esc(x.nota) + '</div>' : '') +
         '<a class="corr" href="' + URL_APP + '?p=cuadre&fecha=' + x.f + '" target="_top">✏️ Ver o corregir este día</a></div>';
     }
     return h + '</div>';

@@ -12,6 +12,7 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
+  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
   var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
@@ -36,6 +37,8 @@
     }
     if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
     if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var yaMostro = false;
+    if (lect && viejo !== undefined && RAPIDO.indexOf(args[1]) >= 0 && ok) { yaMostro = true; setTimeout(function(){ ok(viejo); }, 0); }
     var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
     fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
       .then(function(r){ return r.text(); })
@@ -44,9 +47,10 @@
         var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
         if (!j.ok) { falla(j.err || 'Error'); return; }
         if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (yaMostro && JSON.stringify(j.r) === JSON.stringify(viejo)) return;   // no cambió nada
         if (ok) ok(j.r);
       })
-      .catch(function(){ clearTimeout(t); sinSenal(); });
+      .catch(function(){ clearTimeout(t); if (!yaMostro) sinSenal(); });
   }
   function runner(ok, mal){
     return new Proxy({}, { get: function(_, k){
@@ -176,6 +180,7 @@
 <body>
 <div class="top">
 <style>
+  .cv{color:#14774E!important}.cc{color:#B3261E!important}.cg{color:#C2410C!important}   /* venta verde · compra rojo · gasto naranja */
   .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
   .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
   .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
@@ -388,7 +393,7 @@ function pedirClave(fn, aviso){
 
     <div class="carta">
       <div class="etq">Ventas del mes</div>
-      <div class="grande" id="ventas">$0</div>
+      <div class="grande cv" id="ventas">$0</div>
       <div class="qrmes"><span>📲 QR del mes</span><b id="qrMesTop">$0</b><small id="qrMesN"></small></div>
       <div class="sub" id="comp"></div>
       <div class="sub" id="prom" style="margin-top:4px"></div>
@@ -458,9 +463,9 @@ function pedirClave(fn, aviso){
 
     <div class="carta">
       <h2>Ganancia real del mes</h2>
-      <div class="fila"><span>Ventas</span><b id="gVentas">$0</b></div>
-      <div class="fila"><span>Mercancía comprada</span><b class="neg" id="gMerc">$0</b></div>
-      <div class="fila"><span>Facturas y gastos</span><b class="neg" id="gGastos">$0</b></div>
+      <div class="fila"><span>Ventas</span><b class="cv" id="gVentas">$0</b></div>
+      <div class="fila"><span>Mercancía comprada</span><b class="cc" id="gMerc">$0</b></div>
+      <div class="fila"><span>Facturas y gastos</span><b class="cg" id="gGastos">$0</b></div>
       <div class="fila"><span><b>Utilidad estimada</b></span><b id="gUtil">$0</b></div>
       <div class="barra" id="barra"></div>
       <div class="ley" id="ley"></div>
@@ -576,6 +581,8 @@ function nombreDia(f){
 }
 
 function pintar(r){
+  if (r && r.mes && r.mes !== MES) return;   // llegó tarde un mes que ya no se está viendo
+  precargar();
   $('cargando').hidden = true; $('todo').hidden = false;
   $('titulo').textContent = r.titulo;
   $('sig').disabled = MES >= ACTUAL;
@@ -670,7 +677,7 @@ function pintar(r){
   $('qrMesN').textContent = r.nQr != null ? (r.nQr === 1 ? '1 pago' : r.nQr + ' pagos') : '';
 
   $('gastos').innerHTML = r.gastosDetalle.length
-    ? r.gastosDetalle.map(function(g){ return '<div class="fila"><span>' + esc(g.c) + '</span><b>' + fmt(g.v) + '</b></div>'; }).join('')
+    ? r.gastosDetalle.map(function(g){ return '<div class="fila"><span>' + esc(g.c) + '</span><b class="cg">' + fmt(g.v) + '</b></div>'; }).join('')
     : '<div class="vacio">Sin gastos registrados este mes</div>';
   $('cartera').innerHTML = r.cartera.length
     ? r.cartera.map(function(c){ return '<div class="fila"><span>' + esc(c.n) + chipDias(c.dias) + '</span><b class="neg">' + fmt(c.saldo) + '</b></div>'; }).join('')
@@ -716,6 +723,13 @@ function pintarAnalisis(r){
   $('anaTip').hidden = false;
 }
 
+var PRECARGADO = {};
+// Deja listo el mes anterior para que la flecha ‹ abra al instante
+function precargar(){
+  var p = MES.split('-'), d = new Date(+p[0], +p[1] - 2, 1), m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  if (PRECARGADO[m]) return; PRECARGADO[m] = 1;
+  setTimeout(function(){ srv().withSuccessHandler(function(){}).withFailureHandler(function(){}).panel(m); }, 1500);
+}
 function cargar(){
   $('titulo').textContent = 'Cargando...';
   srv().withSuccessHandler(pintar)
@@ -735,7 +749,7 @@ function pintarAnio(i){
   ANIO_SEL = i; var A = ANIOS[i]; if (!A) return;
   $('anios').innerHTML = ANIOS.map(function(a, j){ return '<button type="button" class="' + (j === i ? 'on' : '') + '" onclick="pintarAnio(' + j + ')">' + a.anio + '</button>'; }).join('');
   var t = A.total, q = t.ventas - t.compras - t.gastos;
-  $('anioTot').innerHTML = '<div><small>VENTAS ' + A.anio + '</small><b>' + fmt(t.ventas) + '</b></div><div><small>COMPRAS</small><b>' + fmt(t.compras) + '</b></div>' +
+  $('anioTot').innerHTML = '<div><small>VENTAS ' + A.anio + '</small><b class="cv">' + fmt(t.ventas) + '</b></div><div><small>COMPRAS</small><b class="cc">' + fmt(t.compras) + '</b></div>' +
     '<div><small>QUEDA</small><b class="' + (q < 0 ? 'neg' : 'pos') + '">' + fmt(q) + '</b></div>';
   var ms = A.meses.filter(function(x){ return x.ventas || x.compras || x.gastos; }).reverse(), B = ANIOS[i + 1];
   var yoy = function(v, ant){ if (!ant || !v) return ''; var p = Math.round((v - ant) / ant * 100); return '<span class="yoy ' + (p >= 0 ? 'pos' : 'neg') + '">' + (p >= 0 ? '▲ ' : '▼ ') + Math.abs(p) + '% vs ' + (A.anio - 1) + '</span>'; };
@@ -746,8 +760,8 @@ function pintarAnio(i){
   $('mesAMes').innerHTML = ms.length ? ms.map(function(x){
     var qq = x.ventas - x.compras - x.gastos, pct = x.ventas ? Math.min(100, Math.round(x.compras / x.ventas * 100)) : 100;
     var ant = B ? B.meses[+x.m.split('-')[1] - 1].ventas : 0;
-    return '<div class="mm"><div class="t"><b>' + x.t + yoy(x.ventas, ant) + '</b><span>' + fmt(x.ventas) + '</span></div>' +
-      '<div class="r"><span>Compras ' + fmt(x.compras) + '</span><span class="' + (qq < 0 ? 'neg' : 'pos') + '">Queda ' + fmt(qq) + '</span></div>' +
+    return '<div class="mm"><div class="t"><b>' + x.t + yoy(x.ventas, ant) + '</b><span class="cv">' + fmt(x.ventas) + '</span></div>' +
+      '<div class="r"><span class="cc">Compras ' + fmt(x.compras) + '</span><span class="' + (qq < 0 ? 'neg' : 'pos') + '">Queda ' + fmt(qq) + '</span></div>' +
       (x.gastos ? '<div class="r"><span>Gastos ' + fmt(x.gastos) + '</span><span></span></div>' : '') +
       '<div class="b"><i style="width:' + pct + '%"></i></div></div>';
   }).join('') : '<div class="sub">Sin ventas registradas en ' + A.anio + '</div>';

@@ -12,6 +12,7 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
+  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
   var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
@@ -36,6 +37,8 @@
     }
     if (!window.APP_URL || APP_URL.indexOf('/exec') < 0) { falla('Falta pegar la URL de la app en config.js'); return; }
     if (!navigator.onLine) { setTimeout(sinSenal, 0); return; }
+    var yaMostro = false;
+    if (lect && viejo !== undefined && RAPIDO.indexOf(args[1]) >= 0 && ok) { yaMostro = true; setTimeout(function(){ ok(viejo); }, 0); }
     var ctl = window.AbortController ? new AbortController() : null, t = ctl ? setTimeout(function(){ ctl.abort(); }, lect ? 30000 : 180000) : 0;
     fetch(APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: fn, args: args }), signal: ctl ? ctl.signal : undefined, redirect: 'follow' })
       .then(function(r){ return r.text(); })
@@ -44,9 +47,10 @@
         var j; try { j = JSON.parse(tx); } catch (e) { falla('El servidor no respondió bien. Revise que la app esté implementada para "Cualquier usuario".'); return; }
         if (!j.ok) { falla(j.err || 'Error'); return; }
         if (lect) guardar(k, j.r === undefined ? null : j.r);
+        if (yaMostro && JSON.stringify(j.r) === JSON.stringify(viejo)) return;   // no cambió nada
         if (ok) ok(j.r);
       })
-      .catch(function(){ clearTimeout(t); sinSenal(); });
+      .catch(function(){ clearTimeout(t); if (!yaMostro) sinSenal(); });
   }
   function runner(ok, mal){
     return new Proxy({}, { get: function(_, k){
@@ -102,6 +106,7 @@
 </head>
 <body>
 <style>
+  .cv{color:#14774E!important}.cc{color:#B3261E!important}.cg{color:#C2410C!important}   /* venta verde · compra rojo · gasto naranja */
   .cm-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px}
   .cm-volver{display:inline-block;background:#0F3D33;color:#fff;text-decoration:none;font:bold 18px Arial,sans-serif;padding:10px 16px;border-radius:12px}
   .cm-quien{font:14px Arial,sans-serif;color:#6b7a74}
@@ -329,11 +334,14 @@ function pedirClave(fn, aviso){
     <input id="gQuien" autocomplete="off">
     <label for="gValor">Valor</label>
     <input id="gValor" inputmode="numeric" autocomplete="off">
+    <div class="ayuda" id="gMedioTxt" style="margin-top:10px">💵 Sale de la caja · <a href="#" id="gCambiar" style="color:#8a5a00;font-weight:bold">¿No salió de la caja?</a></div>
+    <div id="gMedioBox" hidden>
     <label style="margin-top:10px">De dónde salió la plata<span class="ayuda">Solo lo de la caja entra al cuadre del día</span></label>
     <div class="gchips" id="gMedio">
       <button type="button" class="on" data-v="Caja">💵 De la caja</button>
       <button type="button" data-v="Transferencia">🏦 Transfe&shy;rencia</button>
       <button type="button" data-v="Otro">👤 Otro (Jems)</button>
+    </div>
     </div>
     <button type="button" id="btnGGuardar" style="background:#8a5a00;color:#fff;font-size:24px;padding:16px">GUARDAR</button>
     <div id="gMsg" style="margin-top:8px;font-weight:bold"></div>
@@ -412,8 +420,8 @@ function pintar(r){
   base = num(r.base); transf = num(r.transf); pagos = num(r.pagos); compra = num(r.compra); gastos = num(r.gastos);
   $('info').innerHTML = r.existe
     ? 'Base (plata de ayer): <b>' + fmt(base) + '</b><br>' +
-      'Compras pagadas de la caja: <b>' + fmt(compra) + '</b><br>' +
-      'Facturas y gastos de la caja: <b>' + fmt(gastos) + '</b><br>' +
+      'Compras pagadas de la caja: <b class="cc">' + fmt(compra) + '</b><br>' +
+      'Facturas y gastos de la caja: <b class="cg">' + fmt(gastos) + '</b><br>' +
       'Transferencias QR del día: <b>' + fmt(transf) + '</b><br>' +
       'Abonos de clientes del día: <b>' + fmt(pagos) + '</b> (ya van en la venta)<br>' +
       'Deudas nuevas del día: <b>' + fmt(num(r.fiado)) + '</b> (no entran en la venta)'
@@ -421,7 +429,7 @@ function pintar(r){
   if (r.existe && typeof r.venta === 'number' && r.efectivo !== '' && r.efectivo != null) {
     $('info').innerHTML += '<div class="guardado">✅ <b>Este día ya está guardado</b><br>' +
       'Efectivo ' + fmt(num(r.efectivo)) + ' · Retiro ' + fmt(num(r.retiro)) + ' · Raúl ' + fmt(num(r.raul)) +
-      '<br>Venta del día: <b>' + fmt(num(r.venta)) + '</b>' +
+      '<br>Venta del día: <b class="cv">' + fmt(num(r.venta)) + '</b>' +
       (num(r.metaDia) ? '<br>' + (num(r.venta) >= num(r.metaDia) ? '🎉 <b>¡Llegó a la meta de ' + fmt(num(r.metaDia)) + '!</b>'
         : '🎯 ' + Math.round(num(r.venta) / num(r.metaDia) * 100) + '% de la meta (' + fmt(num(r.metaDia)) + ')') : '') +
       '<br><button type="button" class="corregir" onclick="corregir()">✏️ Corregir este día</button></div>';
@@ -440,6 +448,8 @@ function pintar(r){
       '📝 Deudas nuevas: ' + fmt(num(r.fiado)) + '\n\n' +
       '*✅ VENTA DEL DÍA: ' + fmt(num(r.venta)) + '*' +
       (num(r.metaDia) ? '\n🎯 ' + (num(r.venta) >= num(r.metaDia) ? '🎉 ¡Llegamos a la meta!' : Math.round(num(r.venta) / num(r.metaDia) * 100) + '% de la meta de ' + fmt(num(r.metaDia))) : '') +
+      (function(){ var u = num(r.venta) - num(r.compra) - num(r.gastos); return '\n💰 Utilidad del día: *' + (u < 0 ? '-' : '') + fmt(Math.abs(u)) + '* (venta − compras − gastos)'; })() +
+      (r.mes && r.mes.dias ? '\n📈 Venta del mes (' + r.mes.dias + (r.mes.dias === 1 ? ' día' : ' días') + '): *' + fmt(num(r.mes.v)) + '*' : '') + (r.mes && r.mes.qr ? '\n📱 QR del mes: *' + fmt(num(r.mes.qr)) + '*' : '') +
       (r.nota ? '\n\n✏️ Nota: ' + r.nota : '');
     $('wa').href = waLink(t);
     $('wa').hidden = false;
@@ -465,6 +475,7 @@ function corregir(){
 }
 // ---------- Compra o gasto pagado de la caja (se guarda en PAGOS y entra solo al cuadre) ----------
 var gTipo = 'Compra mercancía', gMedio = 'Caja';
+$('gCambiar').addEventListener('click', function(ev){ ev.preventDefault(); $('gMedioBox').hidden = false; $('gMedioTxt').hidden = true; });
 $('btnGasto').addEventListener('click', function(){ $('fGasto').hidden = !$('fGasto').hidden; if (!$('fGasto').hidden) $('gValor').focus(); });
 document.querySelectorAll('#gTipo button').forEach(function(b){
   b.addEventListener('click', function(){
@@ -493,7 +504,7 @@ $('btnGGuardar').addEventListener('click', function(){
       $('btnGGuardar').disabled = false; ULTIMO = r; pintar(r); calc();
       $('gMsg').textContent = '✅ ' + tipoTxt + ' de ' + fmt(v) + (gTipo === 'Otro gasto' ? ' guardado' : ' guardada') + medioTxt; $('gMsg').style.color = '#0b6b52';
       $('gQuien').value = ''; $('gValor').value = '';
-      gMedio = 'Caja'; document.querySelectorAll('#gMedio button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-v') === 'Caja'); });
+      gMedio = 'Caja'; $('gMedioBox').hidden = true; $('gMedioTxt').hidden = false; document.querySelectorAll('#gMedio button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-v') === 'Caja'); });
     }).leerDia($('fecha').value);
   }).withFailureHandler(function(e){
     $('btnGGuardar').disabled = false;
