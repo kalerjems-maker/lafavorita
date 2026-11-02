@@ -88,6 +88,8 @@
   .sub{color:var(--suave);font-size:14px}
   .delta{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:700;font-size:14px;margin-left:6px}
   .up{background:#E3F4EC;color:var(--ok)}.down{background:var(--rojo-s);color:var(--rojo)}
+  .cierreMes{background:#E6EEF8;color:#1D4E89;border:1px solid #c5d6ee;border-radius:14px;padding:12px 14px;font-weight:700;margin-top:10px}
+  .cierreMes button{display:block;width:100%;margin-top:8px;background:#1D4E89;color:#fff;border:0;border-radius:12px;padding:12px;font-size:17px;font-weight:800}
   .alerta{background:var(--rojo-s);color:var(--rojo);border-radius:14px;padding:12px 14px;font-weight:700;border:1px solid #f1c9c2}
   .fila{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--linea);gap:10px}
   .fila:last-child{border-bottom:0}
@@ -250,6 +252,13 @@ var GRACIAS_WA = '¡Gracias por seguir prefiriéndonos! 🙏💛';
 function pagoWa(n, v){
   return '📲 *Puede pagar desde su casa:*\n🔑 Llave Bre-B: *' + llaveQR() + '*\n🧾 Nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0);
 }
+// Cobro corto y profesional (cabe en una pantalla de WhatsApp)
+function cobroWa(n, v){
+  var h = new Date().getHours(), sal = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  return sal + (n ? ', ' + nomCorto(n) : '') + ' 👋\n*Tienda La Favorita* le informa que tiene un saldo pendiente de *$' + sep(Math.round(v || 0)) + '*.\n\n' +
+    '🔑 Puede pagar por Bre-B a la llave *' + llaveQR() + '*\n🧾 O con nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0) +
+    '\n\nGracias por su atención 🙏';
+}
 function msgAbono(nombre, valor, medio, saldo, fecha){
   var f = String(fecha || '').split('-');
   return saludoWa(nombre) + '\n\nRecibimos su abono, ¡muchas gracias! 🙌\n' + (f.length === 3 ? '📅 ' + f[2] + '/' + f[1] + '/' + f[0] + '\n' : '') +
@@ -390,6 +399,7 @@ function pedirClave(fn, aviso){
   <div id="todo" hidden style="display:flex;flex-direction:column;gap:14px">
 
     <div class="alerta" id="alerta" hidden>⚠️ Hoy todavía no se ha hecho el cierre de caja.</div>
+    <div class="cierreMes" id="cierreMes" hidden></div>
 
     <div class="carta">
       <div class="etq">Ventas del mes</div>
@@ -587,6 +597,20 @@ function pintar(r){
   $('titulo').textContent = r.titulo;
   $('sig').disabled = MES >= ACTUAL;
   $('alerta').hidden = !(r.mesActual && !r.cierreHoy);
+  var cm = $('cierreMes'), dueno = ROL && ROL.rol === 'dueno';
+  if (r.cerrado) { cm.hidden = false; cm.innerHTML = '🔒 ' + esc(r.titulo) + ' está cerrado. ' + (dueno ? 'Solo usted puede cambiar algo de este mes.' : 'Solo Jems puede cambiar algo de este mes.'); }
+  else if (r.pasado && dueno) {
+    cm.hidden = false;
+    cm.innerHTML = '📋 ' + esc(r.titulo) + ' ya terminó y no se ha cerrado.<button type="button" id="bCerrar">🔒 Cerrar este mes</button><div id="cerrarMsg" style="font-weight:600;margin-top:6px"></div>';
+    $('bCerrar').onclick = function(){
+      var b = this;
+      if (!b.getAttribute('data-ok')) { b.setAttribute('data-ok', '1'); b.textContent = '¿Seguro? Toque otra vez para cerrar ' + r.titulo; return; }
+      b.disabled = true; b.textContent = 'Cerrando el mes...';
+      srv().withSuccessHandler(function(x){ pintar(x); })
+        .withFailureHandler(function(e){ b.disabled = false; b.removeAttribute('data-ok'); b.textContent = '🔒 Cerrar este mes'; $('cerrarMsg').textContent = 'No se pudo: ' + e.message; })
+        .cerrarMes(MES);
+    };
+  } else cm.hidden = true;
   $('ventas').textContent = fmt(r.ventas);
   if (r.antMismo > 0) {
     var dlt = (r.ventas - r.antMismo) / r.antMismo;

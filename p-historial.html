@@ -185,6 +185,13 @@ var GRACIAS_WA = '¡Gracias por seguir prefiriéndonos! 🙏💛';
 function pagoWa(n, v){
   return '📲 *Puede pagar desde su casa:*\n🔑 Llave Bre-B: *' + llaveQR() + '*\n🧾 Nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0);
 }
+// Cobro corto y profesional (cabe en una pantalla de WhatsApp)
+function cobroWa(n, v){
+  var h = new Date().getHours(), sal = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  return sal + (n ? ', ' + nomCorto(n) : '') + ' 👋\n*Tienda La Favorita* le informa que tiene un saldo pendiente de *$' + sep(Math.round(v || 0)) + '*.\n\n' +
+    '🔑 Puede pagar por Bre-B a la llave *' + llaveQR() + '*\n🧾 O con nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0) +
+    '\n\nGracias por su atención 🙏';
+}
 function msgAbono(nombre, valor, medio, saldo, fecha){
   var f = String(fecha || '').split('-');
   return saludoWa(nombre) + '\n\nRecibimos su abono, ¡muchas gracias! 🙌\n' + (f.length === 3 ? '📅 ' + f[2] + '/' + f[1] + '/' + f[0] + '\n' : '') +
@@ -393,11 +400,13 @@ function lista(){
   $('lista').innerHTML = ds.length ? ds.map(function(x){
     var p = x.f.split('-'), abierto = ABIERTO === x.f, meta = D.metaDia > 0 && x.venta >= D.metaDia;
     var h = '<div class="dia" data-f="' + x.f + '"><div class="t"><b>' + x.dia + ' ' + (+p[2]) + '<small>de ' + MESES[+p[1] - 1] + '</small></b><span class="v cv">' + fmt(x.venta) + '</span></div>' +
-      '<div class="chips"><span>💵 ' + fmt(x.efectivo) + '</span>' + (x.qr ? '<span>📲 QR ' + fmt(x.qr) + '</span>' : '') +
+      '<div class="chips">' + (x.hist ? '<span>📜 App anterior</span>' : '<span>💵 ' + fmt(x.efectivo) + '</span>') + (x.qr ? '<span>📲 QR ' + fmt(x.qr) + '</span>' : '') +
       (x.compra ? '<span class="cc">🛒 ' + fmt(x.compra) + '</span>' : '') + (meta ? '<span class="m">🎯 Meta</span>' : '') + '</div>';
     if (abierto) {
       var f = function(a, b, c){ return '<div class="f"><span>' + a + '</span><b' + (c ? ' class="' + c + '"' : '') + '>' + b + '</b></div>'; };
-      h += '<div class="det">' + f('🏦 Base (plata al abrir)', fmt(x.base)) + f('💵 Plata contada al cerrar', fmt(x.efectivo)) + f('📲 Pagos QR', fmt(x.qr)) +
+      if (x.hist) h += '<div class="det">' + f('🛒 Compras', '−' + fmt(x.compra), 'cc') + f('🧾 Gastos', '−' + fmt(x.gasto), 'cg') +
+        f('<b>✅ Venta del día</b>', fmt(x.venta), 'cv') + '<div class="nota">📜 Dato de la app anterior' + (x.nota && x.nota !== 'App anterior' ? ' · ' + esc(x.nota) : '') + '</div></div>';
+      else h += '<div class="det">' + f('🏦 Base (plata al abrir)', fmt(x.base)) + f('💵 Plata contada al cerrar', fmt(x.efectivo)) + f('📲 Pagos QR', fmt(x.qr)) +
         f('🛒 Compras de la caja', '−' + fmt(x.compra), 'cc') + f('🧾 Gastos de la caja', '−' + fmt(x.gasto), 'cg') +
         f('👜 Jems sacó', fmt(x.jems)) + f('🙋 Raúl sacó', fmt(x.raul)) + f('🤝 Abonos de clientes', fmt(x.abonos)) + f('📝 Deudas nuevas', fmt(x.deudas)) +
         f('<b>✅ Venta del día</b>', fmt(x.venta), 'cv') + (x.nota ? '<div class="nota">✏️ ' + esc(x.nota) + '</div>' : '') +

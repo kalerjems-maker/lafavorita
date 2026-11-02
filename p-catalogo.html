@@ -198,6 +198,13 @@ var GRACIAS_WA = '¡Gracias por seguir prefiriéndonos! 🙏💛';
 function pagoWa(n, v){
   return '📲 *Puede pagar desde su casa:*\n🔑 Llave Bre-B: *' + llaveQR() + '*\n🧾 Nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0);
 }
+// Cobro corto y profesional (cabe en una pantalla de WhatsApp)
+function cobroWa(n, v){
+  var h = new Date().getHours(), sal = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  return sal + (n ? ', ' + nomCorto(n) : '') + ' 👋\n*Tienda La Favorita* le informa que tiene un saldo pendiente de *$' + sep(Math.round(v || 0)) + '*.\n\n' +
+    '🔑 Puede pagar por Bre-B a la llave *' + llaveQR() + '*\n🧾 O con nuestro QR 👉 ' + (window.APP_URL || URL_APP) + '?p=pagar&n=' + encodeURIComponent(nomCorto(n)) + '&v=' + Math.round(v || 0) +
+    '\n\nGracias por su atención 🙏';
+}
 function msgAbono(nombre, valor, medio, saldo, fecha){
   var f = String(fecha || '').split('-');
   return saludoWa(nombre) + '\n\nRecibimos su abono, ¡muchas gracias! 🙌\n' + (f.length === 3 ? '📅 ' + f[2] + '/' + f[1] + '/' + f[0] + '\n' : '') +
