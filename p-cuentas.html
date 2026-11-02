@@ -88,8 +88,8 @@
   .deben .num{display:inline-block;margin-top:6px;background:rgba(255,255,255,.18);border-radius:99px;padding:4px 14px;font-size:19px;font-weight:bold}
   .btel{margin-top:6px;font-size:16px;padding:6px 10px;border-radius:8px;border:2px solid #1d4e89;background:#fff;color:#1d4e89;font-weight:bold}
   .ftel{display:flex;gap:6px;margin-top:6px}
-  .ftel input{flex:1;min-width:0;font-size:20px;padding:8px}
-  .ftel button{font-size:17px;padding:8px 12px;border-radius:8px;border:0;background:#1d4e89;color:#fff;font-weight:bold}
+  .ftel input{flex:1 1 auto;width:auto;min-width:0;margin:0;font-size:20px;padding:8px}
+  .ftel button{flex:0 0 auto;width:auto;margin:0;font-size:17px;padding:8px 12px;border-radius:8px;border:0;background:#1d4e89;color:#fff;font-weight:bold}
   .tipos{display:flex;gap:10px;margin-top:16px}
   .tipos button{flex:1;margin:0;font-size:21px;padding:18px;background:#fff;border:3px solid #999;color:#1b1b1b}
   .tipos button.fiar.on{background:#b3261e;border-color:#b3261e;color:#fff}
@@ -133,7 +133,9 @@
   .cli .l2{font-size:14px;color:#666;margin-top:2px}
   .cli .l2 .rojo{color:#b3261e;font-weight:bold}.cli .l2 .ambar{color:#8a5a00;font-weight:bold}.cli .l2 .gris{color:#0b6b52;font-weight:bold}
   .cli .mas{font-size:15px;color:#444;margin-top:4px}
-  .cli .ftel{margin-top:6px}
+  .cli .ftel{margin-top:6px;flex-wrap:wrap}
+  .cli .ftel input{flex:1 1 100%;font-size:22px;letter-spacing:1px}
+  .cli .ftel button{flex:1 1 100%;font-size:17px;padding:10px}
   .cli .opc3{width:auto;margin:0;flex:0 0 auto;padding:4px 8px;font-size:22px;line-height:1;background:#fff;border:2px solid #e3dccb;color:#555;border-radius:10px}
   .cli .mini{flex:0 0 auto;display:inline-block;background:#25D366;color:#fff;text-decoration:none;font-size:20px;padding:7px 10px;border-radius:10px}
   .cli .mini.hecho{background:#e3f4ec;color:#0b6b52}

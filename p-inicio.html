@@ -428,7 +428,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 1-nov-2026 colores</div>
+  <div class="version">Versión 2-nov-2026</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
@@ -582,7 +582,8 @@ function pintarQR(q){
   $('qrN').textContent = q.n === 0 ? 'Sin pagos todavía' : q.n === 1 ? '1 pago' : q.n + ' pagos';
   var dif = q.total - (q.antes || 0), comp = $('qrComp');
   if (q.diaAntes && (q.total || q.antes)) {
-    comp.textContent = (dif >= 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + ' vs el ' + q.diaAntes + ' pasado';
+    comp.textContent = (dif >= 0 ? '▲ ' : '▼ ') + fmt(Math.abs(dif)) + ' más que el ' + q.diaAntes + ' pasado a esta hora (' + fmt(q.antes || 0) + ')';
+    if (dif < 0) comp.textContent = '▼ ' + fmt(Math.abs(dif)) + ' menos que el ' + q.diaAntes + ' pasado a esta hora (' + fmt(q.antes || 0) + ')';
     comp.className = 'n comp ' + (dif >= 0 ? 'sube' : 'baja');
   } else comp.textContent = '';
   $('qrMes').innerHTML = q.mes != null ? (q.mesPasado ? '<span class="ant">Mes pasado: ' + fmt(q.mesPasado) + '</span>' : '') + '<span>Mes: ' + fmt(q.mes) + '</span>' : '';
