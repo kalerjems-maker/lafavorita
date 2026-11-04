@@ -321,7 +321,7 @@ function pedirClave(fn, aviso){
 
 <label for="efectivo">💵 Plata contada en la caja<span class="ayuda">Todo el efectivo al cerrar</span></label>
 <input id="efectivo" inputmode="numeric" autocomplete="off">
-<button type="button" class="contar" onclick="$('billetes').hidden = !$('billetes').hidden">🧮 Contar billetes y monedas (opcional)</button>
+<button type="button" class="contar" hidden onclick="$('billetes').hidden = !$('billetes').hidden">🧮 Contar billetes y monedas (opcional)</button>
 <div class="billetes" id="billetes" hidden>
   <div id="filasBill"></div>
   <div class="billete"><span class="den">🪙 Monedas</span><span class="x">total $</span><input id="monedas" inputmode="numeric" autocomplete="off" style="flex:1;width:auto;min-width:0"></div>
@@ -445,17 +445,17 @@ function pintar(r){
   if (r.existe && typeof r.venta === 'number') {
     var t = '📊 *Cuadre del día - Tienda La Favorita* 🐔\n📅 ' + fechaBonita($('fecha').value) + '\n\n' +
       '💵 Efectivo contado: ' + fmt(num(r.efectivo)) + '\n' +
-      '🛒 Compras: ' + fmt(num(r.compra)) + '\n' +
-      '🧾 Gastos: ' + fmt(num(r.gastos)) + '\n' +
+      '🛒🔴 Compras: ' + fmt(num(r.compra)) + '\n' +
+      '🧾🟠 Gastos: ' + fmt(num(r.gastos)) + '\n' +
       '👜 Retiro Jems: ' + fmt(num(r.retiro)) + '\n' +
       '🙋 Raúl (socio) sacó: ' + fmt(num(r.raul)) + '\n' +
       '🏦 Base: ' + fmt(base) + '\n' +
       '📱 Transferencias QR: ' + fmt(transf) + '\n' +
       '🤝 Abonos de clientes: ' + fmt(pagos) + '\n' +
       '📝 Deudas nuevas: ' + fmt(num(r.fiado)) + '\n\n' +
-      '*✅ VENTA DEL DÍA: ' + fmt(num(r.venta)) + '*' +
+      '*✅🟢 VENTA DEL DÍA: ' + fmt(num(r.venta)) + '*' +
       (num(r.metaDia) ? '\n🎯 ' + (num(r.venta) >= num(r.metaDia) ? '🎉 ¡Llegamos a la meta!' : Math.round(num(r.venta) / num(r.metaDia) * 100) + '% de la meta de ' + fmt(num(r.metaDia))) : '') +
-      (function(){ var u = num(r.venta) - num(r.compra) - num(r.gastos); return '\n💰 Utilidad del día: *' + (u < 0 ? '-' : '') + fmt(Math.abs(u)) + '* (venta − compras − gastos)'; })() +
+      '\n💰🟢 Utilidad del día (15%): *' + fmt(Math.round(num(r.venta) * 0.15)) + '*' +
       (r.mes && r.mes.dias ? '\n📈 Venta del mes (' + r.mes.dias + (r.mes.dias === 1 ? ' día' : ' días') + '): *' + fmt(num(r.mes.v)) + '*' : '') + (r.mes && r.mes.qr ? '\n📱 QR del mes: *' + fmt(num(r.mes.qr)) + '*' : '') +
       (r.nota ? '\n\n✏️ Nota: ' + r.nota : '');
     $('wa').href = waLink(t);

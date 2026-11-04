@@ -435,7 +435,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 2-nov-2026 historico</div>
+  <div class="version">Versión 2-nov-2026 octubre</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
@@ -504,8 +504,13 @@ function pedirClave(fn, aviso){
     <div class="f"><span>Pagos QR de hoy</span><b id="cQr" style="color:var(--verde2)">$0</b></div>
     <div class="f"><span>Compras y gastos de la caja</span><b id="cSal" style="color:var(--rojo)">$0</b></div>
   </div>
+  <label class="preg" style="display:block">¿Se pagó algo de la caja hoy que no esté anotado? <small style="font-weight:600;color:var(--suave)">Sume las facturas</small></label>
+  <div class="dos">
+    <div><label for="cCompra">🛒 Compras</label><input id="cCompra" inputmode="numeric" autocomplete="off" placeholder="$0"></div>
+    <div><label for="cGasto">🧾 Gastos</label><input id="cGasto" inputmode="numeric" autocomplete="off" placeholder="$0"></div>
+  </div>
   <label class="preg" for="cEfe" style="display:block">¿Cuánta plata hay en la caja?</label>
-  <div class="monto"><span>$</span><input id="cEfe" inputmode="numeric" autocomplete="off" placeholder="Contar billetes y monedas" style="font-size:26px"></div>
+  <div class="monto"><span>$</span><input id="cEfe" inputmode="numeric" autocomplete="off" placeholder="Escriba la plata de la caja" style="font-size:26px"></div>
   <div class="dos">
     <div><label for="cJems">Jems sacó</label><input id="cJems" inputmode="numeric" autocomplete="off" placeholder="$0"></div>
     <div><label for="cRaul">Raúl sacó</label><input id="cRaul" inputmode="numeric" autocomplete="off" placeholder="$0"></div>
@@ -514,7 +519,7 @@ function pedirClave(fn, aviso){
   <div class="venta"><small>Venta del día</small><b id="cVenta">Falta la plata contada</b><div class="m" id="cMeta">Se calcula sola al escribir la plata de la caja</div></div>
   <button type="button" class="principal verdeb" id="cGuardar" onclick="guardarCierre()" disabled>Guardar cuadre</button>
   <div class="err" id="cErr"></div>
-  <a class="salir" href="./?p=cuadre" target="_top">Contar billetes, días pasados o corregir un día</a>
+  <a class="salir" href="./?p=cuadre" target="_top">Días pasados o corregir un día</a>
 </div>
 
 <!-- ============ LISTO ============ -->
@@ -562,7 +567,7 @@ function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return { '&': 
 function hoy(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function fechaBonita(f){ var p = f.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
 function conPuntos(el){ el.addEventListener('input', function(){ var n = num(el.value); el.value = n ? sep(n) : ''; }); }
-['sMonto', 'eMonto', 'cEfe', 'cJems', 'cRaul', 'bMonto'].forEach(function(id){ conPuntos($(id)); });
+['sMonto', 'eMonto', 'cEfe', 'cJems', 'cRaul', 'cCompra', 'cGasto', 'bMonto'].forEach(function(id){ conPuntos($(id)); });
 
 var D = null, VISTA = 'inicio', TODOS = false;
 var S = { tipo: null, quien: '', medio: null };
@@ -765,7 +770,7 @@ function abrirCierre(){
   $('cEfe').value = c.existe && c.efectivo ? sep(c.efectivo) : '';
   $('cJems').value = c.existe && c.retiro ? sep(c.retiro) : '';
   $('cRaul').value = c.existe && c.raul ? sep(c.raul) : '';
-  $('cNota').value = c.nota || '';
+  $('cNota').value = c.nota || ''; $('cCompra').value = ''; $('cGasto').value = '';
   $('cYa').hidden = !c.existe;
   if (c.existe) $('cYa').textContent = '✅ Hoy ya se cerró con venta de ' + fmt(c.venta || 0) + '. Si corrige algo, guarde otra vez.';
   $('cErr').textContent = '';
@@ -773,23 +778,24 @@ function abrirCierre(){
 }
 function calcCierre(){
   var c = D.cierre, efeTxt = $('cEfe').value;
-  var venta = num(efeTxt) + c.compraCaja + c.gastoCaja + num($('cJems').value) + num($('cRaul').value) - c.base + c.qr;
+  var venta = num(efeTxt) + c.compraCaja + c.gastoCaja + num($('cCompra').value) + num($('cGasto').value) + num($('cJems').value) + num($('cRaul').value) - c.base + c.qr;
   $('cGuardar').disabled = !efeTxt;
   $('cVenta').textContent = efeTxt ? fmt(venta) : 'Falta la plata contada';
   $('cMeta').textContent = !efeTxt ? 'Se calcula sola al escribir la plata de la caja'
     : D.metaDia > 0 ? Math.round(venta / D.metaDia * 100) + '% de la meta de ' + fmt(D.metaDia) : '';
 }
-['cEfe', 'cJems', 'cRaul'].forEach(function(id){ $(id).addEventListener('input', calcCierre); });
+['cEfe', 'cJems', 'cRaul', 'cCompra', 'cGasto'].forEach(function(id){ $(id).addEventListener('input', calcCierre); });
 function guardarCierre(){
-  var d = { fecha: hoy(), efectivo: num($('cEfe').value), retiro: num($('cJems').value), raul: num($('cRaul').value), nota: $('cNota').value.trim() };
+  var d = { fecha: hoy(), efectivo: num($('cEfe').value), retiro: num($('cJems').value), raul: num($('cRaul').value), nota: $('cNota').value.trim(),
+            compraExtra: num($('cCompra').value), gastoExtra: num($('cGasto').value) };
   $('cGuardar').disabled = true; $('cErr').textContent = 'Guardando...';
   srv().withSuccessHandler(function(r){
     $('cGuardar').disabled = false; $('cErr').textContent = '';
     var v = num(r.venta), meta = num(r.metaDia);
     var t = '📊 *Cuadre del día - Tienda La Favorita* 🐔\n📅 ' + fechaBonita(d.fecha) + '\n\n' +
-      '💵 Plata en caja: ' + fmt(num(r.efectivo)) + '\n🛒 Compras de la caja: ' + fmt(num(r.compra)) + '\n🧾 Gastos de la caja: ' + fmt(num(r.gastos)) + '\n' +
+      '💵 Plata en caja: ' + fmt(num(r.efectivo)) + '\n🛒🔴 Compras de la caja: ' + fmt(num(r.compra)) + '\n🧾🟠 Gastos de la caja: ' + fmt(num(r.gastos)) + '\n' +
       '👜 Jems sacó: ' + fmt(num(r.retiro)) + '\n🙋 Raúl sacó: ' + fmt(num(r.raul)) + '\n🏦 Base: ' + fmt(num(r.base)) + '\n📱 Pagos QR: ' + fmt(num(r.transf)) + '\n\n' +
-      '*✅ VENTA DEL DÍA: ' + fmt(v) + '*' + (meta ? '\n' + (v >= meta ? '🎉 ¡Llegamos a la meta de ' + fmt(meta) + '!' : '🎯 ' + Math.round(v / meta * 100) + '% de la meta de ' + fmt(meta)) : '') + (function(){ var u = num(r.venta) - num(r.compra) - num(r.gastos); return '\n💰 Utilidad del día: *' + (u < 0 ? '-' : '') + fmt(Math.abs(u)) + '* (venta − compras − gastos)'; })() + (r.mes && r.mes.dias ? '\n📈 Venta del mes (' + r.mes.dias + (r.mes.dias === 1 ? ' día' : ' días') + '): *' + fmt(num(r.mes.v)) + '*' : '') + (r.mes && r.mes.qr ? '\n📱 QR del mes: *' + fmt(num(r.mes.qr)) + '*' : '') + (r.nota ? '\n\n✏️ ' + r.nota : '') + '\n\n¡Buen trabajo hoy! 💪';
+      '*✅🟢 VENTA DEL DÍA: ' + fmt(v) + '*' + (meta ? '\n' + (v >= meta ? '🎉 ¡Llegamos a la meta de ' + fmt(meta) + '!' : '🎯 ' + Math.round(v / meta * 100) + '% de la meta de ' + fmt(meta)) : '') + '\n💰🟢 Utilidad del día (15%): *' + fmt(Math.round(num(r.venta) * 0.15)) + '*' + (r.mes && r.mes.dias ? '\n📈 Venta del mes (' + r.mes.dias + (r.mes.dias === 1 ? ' día' : ' días') + '): *' + fmt(num(r.mes.v)) + '*' : '') + (r.mes && r.mes.qr ? '\n📱 QR del mes: *' + fmt(num(r.mes.qr)) + '*' : '') + (r.nota ? '\n\n✏️ ' + r.nota : '') + '\n\n¡Buen trabajo hoy! 💪';
     listo('Venta del día: ' + fmt(v), meta ? (v >= meta ? '🎉 ¡Llegó a la meta!' : Math.round(v / meta * 100) + '% de la meta') : '', 'https://wa.me/?text=' + encodeURIComponent(t));
     cargar(true);
   }).withFailureHandler(function(e){
