@@ -66,7 +66,27 @@
     return { parameter: p, parameters: ps, hash: location.hash.replace(/^#/, '') };
   }
   window.google = { script: { run: runner(null, null), url: { getLocation: function(cb){ setTimeout(function(){ cb(lugar()); }, 0); } } } };
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  // Aviso "hay una versión nueva": un toque y se recarga con la versión nueva
+  function avisoVersion(){
+    if (document.getElementById('pt-nueva')) return;
+    var d = document.createElement('button'); d.id = 'pt-nueva'; d.type = 'button';
+    d.textContent = '🔄 Hay una versión nueva de la app · Toque aquí para actualizar';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:99999;background:#1D4E89;color:#fff;border:0;font:700 16px Arial,sans-serif;padding:14px 12px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)';
+    d.onclick = function(){ d.textContent = 'Actualizando...'; location.reload(); };
+    (document.body || document.documentElement).appendChild(d);
+  }
+  if ('serviceWorker' in navigator) {
+    var habiaSW = !!navigator.serviceWorker.controller;   // la primera vez que se instala no es 'versión nueva'
+    navigator.serviceWorker.addEventListener('message', function(e){ if (e.data === 'nueva-version') avisoVersion(); });
+    var preguntar = function(){ if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('hay-nueva'); };
+    window.addEventListener('load', function(){ setTimeout(preguntar, 2500); setTimeout(preguntar, 8000); });
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      reg.addEventListener('updatefound', function(){
+        var w = reg.installing; if (!w) return;
+        w.addEventListener('statechange', function(){ if (w.state === 'activated' && habiaSW) avisoVersion(); });
+      });
+    }).catch(function(){});
+  }
 })();
 </script>
 
@@ -379,6 +399,8 @@ function pedirClave(fn, aviso){
 <div id="pend"></div>
 
 <h2>💸 Pagos del día</h2>
+<label for="verFecha" style="margin-top:0">📅 Ver los pagos del día</label>
+<input type="date" id="verFecha" onchange="$('gFecha').value = this.value; cargar()">
 <div id="pagos"></div>
 
 <datalist id="provs"></datalist>
@@ -535,6 +557,7 @@ function pedirCancelar(b, id){
 }
 
 function cargar(){
+  if ($('verFecha')) $('verFecha').value = $('gFecha').value;
   srv().withSuccessHandler(pintar)
     .withFailureHandler(function(e){ msg('Error: ' + e.message, 'err'); })
     .proveedores($('gFecha').value);

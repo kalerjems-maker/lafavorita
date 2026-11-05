@@ -66,7 +66,27 @@
     return { parameter: p, parameters: ps, hash: location.hash.replace(/^#/, '') };
   }
   window.google = { script: { run: runner(null, null), url: { getLocation: function(cb){ setTimeout(function(){ cb(lugar()); }, 0); } } } };
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  // Aviso "hay una versión nueva": un toque y se recarga con la versión nueva
+  function avisoVersion(){
+    if (document.getElementById('pt-nueva')) return;
+    var d = document.createElement('button'); d.id = 'pt-nueva'; d.type = 'button';
+    d.textContent = '🔄 Hay una versión nueva de la app · Toque aquí para actualizar';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:99999;background:#1D4E89;color:#fff;border:0;font:700 16px Arial,sans-serif;padding:14px 12px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)';
+    d.onclick = function(){ d.textContent = 'Actualizando...'; location.reload(); };
+    (document.body || document.documentElement).appendChild(d);
+  }
+  if ('serviceWorker' in navigator) {
+    var habiaSW = !!navigator.serviceWorker.controller;   // la primera vez que se instala no es 'versión nueva'
+    navigator.serviceWorker.addEventListener('message', function(e){ if (e.data === 'nueva-version') avisoVersion(); });
+    var preguntar = function(){ if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('hay-nueva'); };
+    window.addEventListener('load', function(){ setTimeout(preguntar, 2500); setTimeout(preguntar, 8000); });
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      reg.addEventListener('updatefound', function(){
+        var w = reg.installing; if (!w) return;
+        w.addEventListener('statechange', function(){ if (w.state === 'activated' && habiaSW) avisoVersion(); });
+      });
+    }).catch(function(){});
+  }
 })();
 </script>
 
@@ -319,6 +339,12 @@ function pedirClave(fn, aviso){
 <input type="date" id="fecha" onchange="cargar()">
 <div class="info" id="info">Cargando...</div>
 
+<label style="margin-top:14px">¿Se pagó algo de la caja ese día que no esté anotado arriba?<span class="ayuda">Sume las facturas y escriba el total. La venta se corrige sola.</span></label>
+<div style="display:flex;gap:10px">
+  <div style="flex:1;min-width:0"><label for="xCompra" style="margin-top:4px">🛒 Compras</label><input id="xCompra" inputmode="numeric" autocomplete="off" placeholder="$0"></div>
+  <div style="flex:1;min-width:0"><label for="xGasto" style="margin-top:4px">🧾 Gastos</label><input id="xGasto" inputmode="numeric" autocomplete="off" placeholder="$0"></div>
+</div>
+
 <label for="efectivo">💵 Plata contada en la caja<span class="ayuda">Todo el efectivo al cerrar</span></label>
 <input id="efectivo" inputmode="numeric" autocomplete="off">
 <button type="button" class="contar" hidden onclick="$('billetes').hidden = !$('billetes').hidden">🧮 Contar billetes y monedas (opcional)</button>
@@ -329,7 +355,7 @@ function pedirClave(fn, aviso){
   <div class="ayuda" style="margin-top:6px">Escriba cuántos billetes hay de cada uno. El total pasa solo a "Plata contada".</div>
 </div>
 
-<div class="info" style="background:#fff3cd;border-color:#f1d27a">🛒 ¿Se pagó algo <b>de la caja</b> hoy que no esté anotado arriba? Anótelo aquí y la venta se corrige sola.
+<div class="info" style="background:#fff3cd;border-color:#f1d27a" hidden>
   <button type="button" class="contar" id="btnGasto" style="border-color:#8a5a00;color:#8a5a00;background:#fffdf5">➕ Anotar compra, gasto o factura</button>
   <div id="fGasto" hidden>
     <div class="gchips" id="gTipo">
@@ -374,7 +400,7 @@ var PAGINA = 'cuadre';
 // Número de WhatsApp al que se envía (ej. '3001234567'). Vacío = escoger el contacto.
 var WHATSAPP = '';
 
-var CAMPOS = ['efectivo','retiro','raul'];
+var CAMPOS = ['efectivo','retiro','raul','xCompra','xGasto'];
 var base = 0, transf = 0, pagos = 0, compra = 0, gastos = 0;
 function $(id){ return document.getElementById(id); }
 function num(x){ return typeof x === 'number' ? x : (Number(String(x || '').replace(/\D/g, '')) || 0); }
@@ -414,7 +440,7 @@ function calc(){
   if ($('efectivo').value === '') { $('venta').textContent = 'Falta la plata contada'; return; }
   var v = {};
   CAMPOS.forEach(function(c){ v[c] = num($(c).value); });
-  $('venta').textContent = fmt(v.efectivo + compra + gastos + v.retiro + v.raul - base + transf);
+  $('venta').textContent = fmt(v.efectivo + compra + gastos + v.xCompra + v.xGasto + v.retiro + v.raul - base + transf);
 }
 
 CAMPOS.forEach(function(c){
@@ -529,7 +555,8 @@ function cargar(){
 
 function guardar(){
   var d = { fecha: $('fecha').value, nota: $('nota').value.trim() };
-  CAMPOS.forEach(function(c){ d[c] = $(c).value === '' ? '' : num($(c).value); });
+  ['efectivo','retiro','raul'].forEach(function(c){ d[c] = $(c).value === '' ? '' : num($(c).value); });
+  d.compraExtra = num($('xCompra').value); d.gastoExtra = num($('xGasto').value);
   if (d.efectivo === '') { msg('Escriba la plata contada en la caja', 'err'); $('efectivo').focus(); return; }
   $('btn').disabled = true; msg('Guardando...');
   srv().withSuccessHandler(function(r){

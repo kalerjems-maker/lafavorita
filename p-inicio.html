@@ -66,7 +66,27 @@
     return { parameter: p, parameters: ps, hash: location.hash.replace(/^#/, '') };
   }
   window.google = { script: { run: runner(null, null), url: { getLocation: function(cb){ setTimeout(function(){ cb(lugar()); }, 0); } } } };
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  // Aviso "hay una versión nueva": un toque y se recarga con la versión nueva
+  function avisoVersion(){
+    if (document.getElementById('pt-nueva')) return;
+    var d = document.createElement('button'); d.id = 'pt-nueva'; d.type = 'button';
+    d.textContent = '🔄 Hay una versión nueva de la app · Toque aquí para actualizar';
+    d.style.cssText = 'position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:99999;background:#1D4E89;color:#fff;border:0;font:700 16px Arial,sans-serif;padding:14px 12px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)';
+    d.onclick = function(){ d.textContent = 'Actualizando...'; location.reload(); };
+    (document.body || document.documentElement).appendChild(d);
+  }
+  if ('serviceWorker' in navigator) {
+    var habiaSW = !!navigator.serviceWorker.controller;   // la primera vez que se instala no es 'versión nueva'
+    navigator.serviceWorker.addEventListener('message', function(e){ if (e.data === 'nueva-version') avisoVersion(); });
+    var preguntar = function(){ if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('hay-nueva'); };
+    window.addEventListener('load', function(){ setTimeout(preguntar, 2500); setTimeout(preguntar, 8000); });
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      reg.addEventListener('updatefound', function(){
+        var w = reg.installing; if (!w) return;
+        w.addEventListener('statechange', function(){ if (w.state === 'activated' && habiaSW) avisoVersion(); });
+      });
+    }).catch(function(){});
+  }
 })();
 </script>
 
@@ -435,7 +455,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 2-nov-2026 octubre</div>
+  <div class="version">Versión 4-nov-2026 cuadre facil</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
