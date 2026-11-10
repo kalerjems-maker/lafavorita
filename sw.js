@@ -15,7 +15,7 @@ function nueva(viejo, r) {
 var CAMBIO = 0;
 // La pantalla pregunta al abrir: "¿cambió algo?" (el aviso directo puede llegar antes de que la pantalla esté lista)
 self.addEventListener('message', function (e) {
-  if (e.data === 'hay-nueva' && CAMBIO && Date.now() - CAMBIO < 600000 && e.source) e.source.postMessage('nueva-version');
+  if (e.data === 'hay-nueva' && CAMBIO && Date.now() - CAMBIO < 600000 && e.source) { CAMBIO = 0; e.source.postMessage('nueva-version'); }  // se avisa una sola vez
 });
 function avisar() { self.clients.matchAll({ type: 'window' }).then(function (cs) { cs.forEach(function (c) { c.postMessage('nueva-version'); }); }); }
 self.addEventListener('fetch', function (e) {

@@ -192,6 +192,18 @@
   .aviso.err{background:#fdecea;color:#b3261e}
   .aviso a{color:inherit}
   .total{display:flex;justify-content:space-between;font-size:24px;font-weight:bold;margin-top:16px;background:#fff;border-radius:12px;padding:14px}
+  .lalerta .lsub{border:0;background:#B3261E;color:#fff;border-radius:8px;font:700 14px Arial,sans-serif;padding:5px 9px;margin-left:6px}
+  .lcomp{display:block;width:100%;border:2px solid #1D4E89;background:#EAF1FA;color:#1D4E89;border-radius:12px;font-size:17px;font-weight:800;padding:12px;margin:8px 0}
+  .lcomp2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
+  .lcomp2 button{border:0;border-radius:12px;padding:12px 4px;font-size:15px;font-weight:800;color:#fff}
+  #imp{display:none}
+  @media print{
+    body{background:#fff !important}
+    body > *:not(#imp){display:none !important}
+    #imp{display:block;font-family:Arial,sans-serif;color:#000}
+    #imp h1{font-size:20px;margin:0 0 4px}#imp h2{font-size:15px;margin:12px 0 4px;border-bottom:2px solid #000}
+    #imp table{width:100%;border-collapse:collapse;font-size:13px}#imp td{border-bottom:1px solid #ccc;padding:3px 4px}#imp td.v{text-align:right;font-weight:700;white-space:nowrap}
+  }
 </style>
 </head>
 <body>
@@ -417,6 +429,12 @@ function pedirClave(fn, aviso){
   <div class="lcont" id="lCont"></div>
   <div class="lreglas" id="lReglas"></div>
   <button type="button" class="lauto" id="lAuto" hidden></button>
+  <button type="button" class="lcomp" id="lComp">🏷️ Compartir o imprimir la lista de precios</button>
+  <div class="lcomp2" id="lComp2" hidden>
+    <button type="button" id="cWa" style="background:#25D366">📲 WhatsApp</button>
+    <button type="button" id="cImp" style="background:#1D4E89">🖨️ Imprimir</button>
+    <button type="button" id="cCop" style="background:#5b6770">📋 Copiar</button>
+  </div>
   <button type="button" class="lnuevo" id="lNuevoBtn">+ Agregar producto</button>
   <div class="card" id="lNuevo" hidden>
     <label for="nP" style="margin-top:0">Producto</label><input id="nP" list="dlProds" autocomplete="off" placeholder="Ej: Colombiana 250ml">
@@ -523,27 +541,32 @@ chips('aTipo', function(v){ tipo = v; $('boxPago').hidden = v !== 'Compra'; $('b
 chips('aPago', function(v){ pago = v; });
 
 // ---------- Lista de precios ----------
-var LAB = {};   // tarjeta abierta para editar
-function costoUnit(p){ var un = (p.venta && p.venta.unid) || 1; return p.ult ? p.ult.precio / un : 0; }
+var LAB = {}, SOLO = false;   // tarjeta abierta para editar
+// Cuántas unidades trae la presentación: "CAJA X 24" → 24, "BULTO X 50 KG" → 100 libras
+function unidDe(u){ var t = String(u || '').toUpperCase(), m = t.match(/X\s*(\d+)\s*(KG|KILO)?/) || t.match(/(\d+)\s*(UND|UNID|UNIDADES|U\b)/); if (!m) return 1; var n = Number(m[1]) || 1; return m[2] && /KG|KILO/.test(m[2]) ? n * 2 : n; }
+function unidP(p){ return (p.venta && p.venta.unid) || unidDe(p.u); }
+function costoUnit(p){ return p.ult ? p.ult.precio / unidP(p) : 0; }
+function lsugHtml(p, un){ var cu = p.ult.precio / (un || 1); return 'Le costó ' + fmt(p.ult.precio) + ' en ' + esc(p.ult.prov) + ' (' + fCorta(p.ult.fecha) + ')' + (un > 1 ? '<br>Cada unidad le cuesta <b>' + fmt(cu) + '</b>' : '') + '<br>💡 Costo + ' + Math.round(pctDe(cu, p.cat) * 100) + '%: <button type="button" class="lusar">Usar ' + fmt(sugerido(cu, p.cat)) + '</button>'; }
 var GR = { basica: { n: 'Canasta básica', ico: '🌾', pct: 0.15 }, hogar: { n: 'Complementos del hogar', ico: '🏠', pct: 0.2 }, antojo: { n: 'Antojos y variedad', ico: '🍫', pct: 0.25 }, refri: { n: 'Refrigeración', ico: '❄️', pct: 0.3 } };
 function gruposP(){ return (D.reglas && D.reglas.grupos) || GR; }
 function pctDe(costoU, cat){ var g = gruposP(); return (g[cat] || g.hogar).pct; }
 function chipsGrupo(sel, clase){ var g = gruposP(); return '<div class="lgr">' + Object.keys(g).map(function(k){ return '<button type="button" class="' + clase + (k === sel ? ' on' : '') + '" data-c="' + k + '">' + g[k].ico + ' ' + g[k].n + ' <b>' + Math.round(g[k].pct * 100) + '%</b></button>'; }).join('') + '</div>'; }
 function claseMg(sobre, pct){ return sobre >= pct - 0.03 ? 'ok' : sobre >= pct / 2 ? 'med' : 'mal'; }
 function sugerido(costoU, cat){ return Math.ceil(costoU * (1 + pctDe(costoU, cat)) / 50) * 50; }
+function subioP(p){ return (D.revisar || []).some(function(x){ return x.subio && x.n === p.n && x.u === p.u; }); }
 function filaLista(p, idx){
   var v = p.venta, cu = costoUnit(p), k = esc(p.n + '|' + p.u), h = '';
-  var info = cu ? 'Compra: ' + fmt(cu) + (v && v.unid > 1 ? ' / unidad' : '') : 'Sin costo';
+  var info = cu ? 'Compra: ' + fmt(cu) + (unidP(p) > 1 ? ' c/u' : '') : 'Sin costo';
   if (v && cu) { var mk = (v.precio - cu) / cu; info += ' · <span class="mg ' + claseMg(mk, pctDe(cu, p.cat)) + '">' + (mk >= 0 ? '+' : '') + Math.round(mk * 100) + '%</span>'; }
   info = ((gruposP()[p.cat] || {}).ico || '') + ' ' + info;
   h += '<div class="lp' + (LAB[k] ? ' abierto' : '') + '" data-k="' + k + '"><div class="lpi"><span class="ln">' + esc(p.n) + '</span>' + (p.u ? '<span class="lu">' + esc(p.u) + '</span>' : '') + '<div class="lc">' + info + '</div>' +
-       ((D.revisar || []).some(function(x){ return x.subio && x.n === p.n && x.u === p.u; }) ? '<div class="lalerta">📈 Subió el costo, revise el precio</div>' : '') + '</div>' +
-       '<div class="lv' + (v ? '' : ' sin') + '"><b>' + (v ? fmt(v.precio) : 'Sin precio') + '</b><small>' + (v ? 'precio venta' : (cu ? 'sugerido ' + fmt(sugerido(cu, p.cat)) : '')) + '</small></div>' +
+       (subioP(p) ? '<div class="lalerta">📈 Subió el costo' + (v && v.sugerido > v.precio ? ' <button type="button" class="lsub" data-s="' + v.sugerido + '">Usar ' + fmt(v.sugerido) + '</button>' : ', revise el precio') + '</div>' : '') + '</div>' +
+       '<div class="lv' + (v ? '' : ' sin') + '"><b>' + (v ? fmt(v.precio) : 'Sin precio') + '</b><small>' + (v ? (unidP(p) > 1 ? 'cada unidad' : 'precio venta') : (cu ? 'sugerido ' + fmt(sugerido(cu, p.cat)) + (unidP(p) > 1 ? ' c/u' : '') : '')) + '</small></div>' +
        '<div class="lb"><button type="button" class="le" title="Cambiar precio">✏️</button><button type="button" class="lx" title="Quitar de la lista">✕</button></div></div>';
   if (LAB[k]) {
     h += '<div class="led" data-k="' + k + '"><label>Precio de venta de cada unidad</label><input class="vp" inputmode="numeric" value="' + (v ? sep(v.precio) : '') + '">' +
-      '<label>¿Cuántas unidades trae ' + esc(p.u || 'la presentación') + '?<span class="ayuda">Paca x 12 → 12. Si la vende entera → 1</span></label><input class="vu" inputmode="numeric" value="' + ((v && v.unid) || 1) + '">' +
-      (p.ult ? '<div class="lsug">Le costó ' + fmt(p.ult.precio) + ' en ' + esc(p.ult.prov) + ' (' + fCorta(p.ult.fecha) + ')<br>💡 Costo + ' + Math.round(pctDe(cu || p.ult.precio, p.cat) * 100) + '%: <button type="button" class="lusar">Usar ' + fmt(sugerido(cu || p.ult.precio, p.cat)) + '</button></div>' : '') +
+      '<label>¿Cuántas unidades trae ' + esc(p.u || 'la presentación') + '?<span class="ayuda">Paca x 12 → 12. Si la vende entera → 1</span></label><input class="vu" inputmode="numeric" value="' + unidP(p) + '">' +
+      (p.ult ? '<div class="lsug">' + lsugHtml(p, unidP(p)) + '</div>' : '') +
       '<label>Grupo del producto' + (p.catAuto ? '<span class="ayuda">La app lo escogió por el nombre. Cámbielo si no es.</span>' : '') + '</label>' + chipsGrupo(p.cat, 'lcat') +
       '<button type="button" class="gv" style="margin-top:10px">GUARDAR</button></div>';
   }
@@ -551,10 +574,11 @@ function filaLista(p, idx){
 }
 function pintarLista(){
   var q = sinTilde($('lBuscar').value.trim());
-  var vis = D.productos.filter(function(p){ return !p.oculto && (!q || sinTilde(p.n + ' ' + p.u + ' ' + (p.ult ? p.ult.prov : '')).indexOf(q) >= 0); });
+  var vis = D.productos.filter(function(p){ return !p.oculto && (!SOLO || subioP(p)) && (!q || sinTilde(p.n + ' ' + p.u + ' ' + (p.ult ? p.ult.prov : '')).indexOf(q) >= 0); });
   var ocul = D.productos.filter(function(p){ return p.oculto; });
   var sinP = D.productos.filter(function(p){ return !p.oculto && !p.venta; }).length;
-  $('lCont').textContent = D.productos.length ? (vis.length + (vis.length === 1 ? ' producto' : ' productos') + (sinP && !q ? ' · ' + sinP + ' sin precio de venta' : '')) : '';
+  if (SOLO) { $('lCont').innerHTML = '📈 ' + vis.length + (vis.length === 1 ? ' subió' : ' subieron') + ' de costo · <button type="button" id="lTodos" style="border:0;background:none;color:#1D4E89;font-weight:800;font-size:15px;text-decoration:underline">Ver todos</button>'; $('lTodos').onclick = function(){ SOLO = false; pintarLista(); }; }
+  else $('lCont').textContent = D.productos.length ? (vis.length + (vis.length === 1 ? ' producto' : ' productos') + (sinP && !q ? ' · ' + sinP + ' sin precio de venta' : '')) : '';
   if (!D.productos.length) { $('lLista').innerHTML = '<div class="vacio">Todavía no hay productos. Tome la foto de una factura en 📷 FACTURA y aparecen aquí solos.</div>'; }
   else if (!vis.length) $('lLista').innerHTML = '<div class="vacio">No encontré "' + esc($('lBuscar').value) + '"</div>';
   else {
@@ -580,6 +604,38 @@ function guardarPrecio(k, pr, un, boton){
     .guardarVenta({ p: kk[0], u: kk[1], precio: pr, unid: un || 1 });
 }
 $('lBuscar').addEventListener('input', pintarLista);
+// ---------- Compartir / imprimir la lista ----------
+function listaVenta(){
+  var G = gruposP(), por = {};
+  D.productos.forEach(function(p){ if (p.oculto || !p.venta) return; var c = G[p.cat] ? p.cat : 'hogar'; (por[c] = por[c] || []).push(p); });
+  return Object.keys(G).filter(function(c){ return por[c]; }).map(function(c){
+    return { g: G[c], ps: por[c].sort(function(a, b){ return a.n.localeCompare(b.n); }) };
+  });
+}
+function nomVenta(p){ return p.n + (p.venta.unid > 1 || !p.u || /^UNIDAD|^UND/.test(p.u) ? '' : ' (' + p.u.toLowerCase() + ')'); }
+function textoLista(){
+  var d = new Date(), f = d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear();
+  return '🏪 *TIENDA LA FAVORITA* · Precios ' + f + '\n' + listaVenta().map(function(x){
+    return '\n' + x.g.ico + ' *' + x.g.n.toUpperCase() + '*\n' + x.ps.map(function(p){ return '• ' + nomVenta(p) + ' · *' + fmt(p.venta.precio) + '*'; }).join('\n');
+  }).join('\n');
+}
+$('lComp').addEventListener('click', function(){ $('lComp2').hidden = !$('lComp2').hidden; });
+$('cWa').addEventListener('click', function(){
+  var t = textoLista();
+  if (navigator.share) { navigator.share({ text: t }).catch(function(){}); return; }
+  window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+});
+$('cCop').addEventListener('click', function(){
+  var t = textoLista();
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function(){ msg('📋 Lista copiada. Péguela en WhatsApp.', 'ok'); }, function(){ msg('No se pudo copiar', 'err'); });
+});
+$('cImp').addEventListener('click', function(){
+  var d = new Date();
+  $('imp').innerHTML = '<h1>🏪 Tienda La Favorita · Lista de precios</h1><div>' + d.toLocaleDateString('es-CO') + '</div>' + listaVenta().map(function(x){
+    return '<h2>' + x.g.ico + ' ' + esc(x.g.n) + '</h2><table>' + x.ps.map(function(p){ return '<tr><td>' + esc(nomVenta(p)) + '</td><td class="v">' + fmt(p.venta.precio) + '</td></tr>'; }).join('') + '</table>';
+  }).join('');
+  window.print();
+});
 $('lAuto').addEventListener('click', function(){
   var b = this;
   if (!b.classList.contains('seg')) { b.classList.add('seg'); b.textContent = '¿Seguro? Toque otra vez y se ponen todos (luego los puede cambiar)'; setTimeout(function(){ b.classList.remove('seg'); pintarLista(); }, 4000); return; }
@@ -600,6 +656,7 @@ $('lLista').addEventListener('click', function(e){
       .ocultarProducto({ p: kk[0], u: kk[1] });
     return;
   }
+  if (b.classList.contains('lsub')) { var pp = D.productos.filter(function(x){ return x.n + '|' + x.u === k; })[0]; b.disabled = true; guardarPrecio(k, +b.getAttribute('data-s'), (pp && pp.venta && pp.venta.unid) || 1); return; }
   var ed = b.closest('.led'); if (!ed) return;
   if (b.classList.contains('lusar')) { ed.querySelector('.vp').value = sep(num(b.textContent)); return; }
   if (b.classList.contains('gv')) guardarPrecio(k, num(ed.querySelector('.vp').value), num(ed.querySelector('.vu').value) || 1, b);
@@ -611,7 +668,14 @@ $('lLista').addEventListener('click', function(e){
       .marcarCat({ p: kk[0], u: kk[1], cat: c });
   }
 });
-$('lLista').addEventListener('input', function(e){ var i = e.target; if (i.classList.contains('vp') || i.classList.contains('vu')) { var n = num(i.value); i.value = n ? sep(n) : ''; } });
+$('lLista').addEventListener('input', function(e){
+  var i = e.target; if (i.classList.contains('vp') || i.classList.contains('vu')) { var n = num(i.value); i.value = n ? sep(n) : ''; }
+  if (i.classList.contains('vu')) {   // al cambiar las unidades se recalcula el costo y el sugerido de cada una
+    var ed = i.closest('.led'), k = ed.getAttribute('data-k').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    var p = D.productos.filter(function(x){ return x.n + '|' + x.u === k; })[0], box = ed.querySelector('.lsug');
+    if (p && p.ult && box) box.innerHTML = lsugHtml(p, num(i.value) || 1);
+  }
+});
 $('lOcultosBtn').addEventListener('click', function(){ $('lOcultos').hidden = !$('lOcultos').hidden; pintarLista(); });
 $('lOcultos').addEventListener('click', function(e){
   var b = e.target.closest('.lvolver'); if (!b) return;
@@ -837,7 +901,8 @@ $('btnGuardar').addEventListener('click', function(){
       (d.pagar ? '. Pago anotado.' : '') + (r.guardado.pedido ? ' El pedido de este proveedor quedó PAGADO.' : ''), 'ok');
     pintar(r); limpiar();
     var m0 = $('msg').textContent; setModo('lista'); $('lBuscar').value = r.guardado.prov || ''; pintarLista();
-    msg(m0 + (r.guardado.auto ? ' ⚡ Se puso precio de venta a ' + r.guardado.auto + (r.guardado.auto === 1 ? ' producto nuevo' : ' productos nuevos') + ' (revíselos con ✏️).' : '') + ' Ya están en la lista 👇', 'ok');
+    var sub = (r.revisar || []).filter(function(x){ return x.subio && lineas.some(function(l){ return l.p.toUpperCase() === x.n && l.u.toUpperCase() === x.u; }); }).length;
+    msg(m0 + (sub ? ' 📈 ' + (sub === 1 ? '1 producto llegó' : sub + ' productos llegaron') + ' más caro: toque "Usar" en rojo para subirle el precio.' : '') + (r.guardado.auto ? ' ⚡ Se puso precio de venta a ' + r.guardado.auto + (r.guardado.auto === 1 ? ' producto nuevo' : ' productos nuevos') + ' (revíselos con ✏️).' : '') + ' Ya están en la lista 👇', 'ok');
   }).withFailureHandler(function(e){
     $('btnGuardar').disabled = false; msg('No se guardó: ' + e.message, 'err');
   }).guardarFactura(d);
@@ -902,8 +967,10 @@ $('fotoIA').addEventListener('change', function(){
   });
 });
 
+var VER = '';
+try { google.script.url.getLocation(function(l){ VER = (l.parameter && l.parameter.ver) || ''; }); } catch (e) {}
 function cargar(){
-  srv().withSuccessHandler(pintar)
+  srv().withSuccessHandler(function(r){ if (VER === 'revisar') { VER = ''; SOLO = true; } pintar(r); })
     .withFailureHandler(function(e){ msg('Error: ' + e.message, 'err'); })
     .precios();
 }
@@ -911,5 +978,6 @@ $('aFecha').value = hoy();
 $('btnGuardar').textContent = 'GUARDAR FACTURA';
 iniciar(cargar);
 </script>
+<div id="imp"></div>
 </body>
 </html>

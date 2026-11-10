@@ -203,6 +203,15 @@
   nav.abajo .num{background:var(--rojo);color:#fff;border-radius:9px;font-size:11px;padding:0 6px;margin-left:2px}
   .fijosAv{display:block;background:#FFF4DE;border:2px solid #E8C877;border-radius:16px;padding:12px 14px;text-decoration:none;color:#6b4a00;margin-bottom:12px}
   .fijosAv b{display:block;font-size:16px;margin-bottom:2px}.fijosAv span{display:block;font-size:14px}
+  .subeAv{background:#FDE7E7;border-color:#E9A3A3;color:#8E1F17}
+  .bprecio{position:relative;margin-bottom:12px}
+  .bprecio input{width:100%;box-sizing:border-box;font-size:18px;padding:13px 14px;border:2px solid var(--linea);border-radius:16px;background:#fff}
+  .bprecio input:focus{outline:none;border-color:var(--verde2)}
+  .pres{background:#fff;border:1px solid var(--linea);border-radius:16px;margin-top:6px;overflow:hidden}
+  .pr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--linea)}
+  .pr:last-child{border-bottom:0}
+  .pr b{display:block;font-size:16px}.pr small{display:block;color:var(--suave);font-size:13px}
+  .pr .pv{text-align:right;white-space:nowrap}.pr .pv b{font-size:22px;color:var(--verde2)}.pr .pv.sin b{font-size:15px;color:#9aa5b1}
 </style>
 </head>
 <body>
@@ -441,6 +450,11 @@ function pedirClave(fn, aviso){
 <!-- ============ INICIO ============ -->
 <div class="wrap" id="vInicio">
   <a class="fijosAv" id="fijosAv" href="./?p=fijos" target="_top" hidden></a>
+  <a class="fijosAv subeAv" id="subeAv" href="./?p=precios&ver=revisar" target="_top" hidden></a>
+  <div class="bprecio" id="bPrecio" hidden>
+    <input id="pBuscar" type="search" autocomplete="off" placeholder="🔎 Buscar precio: soda, arroz, aceite...">
+    <div id="pRes"></div>
+  </div>
   <div class="grandes">
     <button type="button" class="grande g-entro" onclick="abrirEntro()"><span style="font-size:30px">＋</span>Entró plata<small>Abono de un cliente</small></button>
     <button type="button" class="grande g-salio" onclick="abrirSalio()"><span style="font-size:30px">－</span>Salió plata<small>Compra, factura o gasto</small></button>
@@ -455,7 +469,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 10-nov-2026 precios auto</div>
+  <div class="version">Versión 10-nov-2026 comparar meses</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
@@ -859,7 +873,45 @@ function cargar(silencio){
     })
     .inicio();
 }
-iniciar(cargar);
+// ---------- Buscar precio ----------
+var PREC = null;
+try { PREC = JSON.parse(localStorage.getItem('favorita_precios_ini') || 'null'); } catch (e) {}
+function sinTil(t){ return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function unidDe(u){ var t = String(u || '').toUpperCase(), m = t.match(/X\s*(\d+)\s*(KG|KILO)?/) || t.match(/(\d+)\s*(UND|UNID|UNIDADES|U\b)/); if (!m) return 1; var n = Number(m[1]) || 1; return m[2] && /KG|KILO/.test(m[2]) ? n * 2 : n; }
+function cargarPrecios(){
+  if (!ROL || ROL.paginas.indexOf('precios') < 0) return;
+  $('bPrecio').hidden = false;
+  pintarSube();
+  srv().withSuccessHandler(function(r){
+    // Solo lo necesario para buscar, así se guarda liviano en el celular
+    PREC = { g: (r.reglas && r.reglas.grupos) || {}, ps: r.productos.filter(function(p){ return !p.oculto; }).map(function(p){
+      return { n: p.n, u: p.u, c: p.ult ? p.ult.precio : 0, cat: p.cat, v: p.venta ? p.venta.precio : 0, un: p.venta ? p.venta.unid : unidDe(p.u) }; }),
+      sube: (r.revisar || []).filter(function(x){ return x.subio; }).map(function(x){ return x.n; }) };
+    try { localStorage.setItem('favorita_precios_ini', JSON.stringify(PREC)); } catch (e) {}
+    pintarSube(); buscarPrecio();
+  }).withFailureHandler(function(){}).precios();
+}
+function pintarSube(){
+  var n = PREC && PREC.sube ? PREC.sube.length : 0;
+  $('subeAv').hidden = !n;
+  if (n) $('subeAv').innerHTML = '<b>📈 ' + (n === 1 ? '1 producto llegó' : n + ' productos llegaron') + ' más caro</b><span>' + esc(PREC.sube.slice(0, 3).join(', ')) + (n > 3 ? '...' : '') + '</span><span>Toque aquí para subirle el precio de venta</span>';
+}
+function buscarPrecio(){
+  var q = sinTil($('pBuscar').value.trim());
+  if (!q) { $('pRes').innerHTML = ''; return; }
+  if (!PREC) { $('pRes').innerHTML = '<div class="pres"><div class="pr"><small>Cargando precios...</small></div></div>'; return; }
+  var pal = q.split(/\s+/);
+  var ok = PREC.ps.filter(function(p){ var t = sinTil(p.n + ' ' + p.u); return pal.every(function(w){ return t.indexOf(w) >= 0; }); }).slice(0, 8);
+  $('pRes').innerHTML = '<div class="pres">' + (ok.length ? ok.map(function(p){
+    var cu = p.c / (p.un || 1), g = PREC.g[p.cat] || PREC.g.hogar || { pct: 0.2 }, sug = Math.ceil(cu * (1 + g.pct) / 50) * 50, cu1 = p.un > 1;
+    return '<div class="pr"><div><b>' + esc(p.n) + '</b><small>' + esc(p.u || '') + (p.c ? ' · costo ' + fmt(cu) + (cu1 ? ' c/u' : '') : '') + '</small></div>' +
+      (p.v ? '<div class="pv"><b>' + fmt(p.v) + '</b><small>' + (cu1 ? 'cada unidad' : 'precio venta') + '</small></div>'
+           : '<div class="pv sin"><b>Sin precio</b><small>' + (p.c ? 'sugerido ' + fmt(sug) : '') + '</small></div>') + '</div>';
+  }).join('') : '<div class="pr"><small>No encontré "' + esc($('pBuscar').value) + '"</small></div>') + '</div>';
+}
+$('pBuscar').addEventListener('input', buscarPrecio);
+iniciar(function(){ cargar(); cargarPrecios(); });
+setInterval(function(){ if (PIN && !document.hidden && VISTA === 'inicio') cargarPrecios(); }, 600000);
 // Se actualiza solo cada minuto para ver los pagos que entran
 setInterval(function(){ if (PIN && !document.hidden && VISTA === 'inicio') cargar(true); }, 60000);
 </script>

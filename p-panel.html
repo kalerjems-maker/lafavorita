@@ -135,6 +135,14 @@
   .anios{display:flex;gap:8px;margin:4px 0 8px}
   .anios button{border:2px solid var(--linea);background:#fff;border-radius:99px;padding:6px 16px;font-size:15px;font-weight:800;color:#1d2925;cursor:pointer}
   .anios button.on{background:var(--verde);border-color:var(--verde);color:#fff}
+  .vs{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);font-variant-numeric:tabular-nums}
+  .vs > div{padding:9px 4px;border-bottom:1px solid #e3ebe7;display:flex;flex-direction:column;justify-content:center}
+  .vs .h{font-size:12px;font-weight:800;color:#6b7a74;letter-spacing:.3px;text-transform:uppercase;text-align:right}
+  .vs .h:first-child{text-align:left}
+  .vs .c{font-weight:800;font-size:15px}
+  .vs .n{text-align:right;font-size:16px;font-weight:800;white-space:nowrap}
+  .vs .a{text-align:right;font-size:14px;color:#6b7a74;white-space:nowrap}
+  .vs .d{display:block;font-size:12px;font-weight:800}.vs .d.up{color:#14774E}.vs .d.down{color:#B3261E}
   .soc3{background:#f4f8f6;border-radius:14px;padding:6px 12px;margin-bottom:8px}
   .soc3 div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0}
   .soc3 div+div{border-top:1px solid #e3ebe7}
@@ -434,6 +442,12 @@ function pedirClave(fn, aviso){
       <div class="sub" id="prom" style="margin-top:4px"></div>
     </div>
 
+    <div class="carta" id="vsCarta" hidden>
+      <h2 id="vsTit">🗓️ Este mes vs mes pasado</h2>
+      <div class="vs" id="vs"></div>
+      <div class="sub" id="vsNota" style="margin-top:6px"></div>
+    </div>
+
     <div class="carta">
       <h2>💰 Lo que entró a cada socio</h2>
       <div class="soc2">
@@ -654,6 +668,7 @@ function pintar(r){
     $('comp').innerHTML = (r.mesActual ? 'Mismo periodo del mes pasado: ' : 'Mes pasado: ') + fmt(r.antMismo) +
       '<span class="delta ' + (dlt >= 0 ? 'up' : 'down') + '">' + (dlt >= 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(dlt * 100)) + '%</span>';
   } else { $('comp').textContent = 'Sin datos del mes anterior para comparar'; }
+  pintarVs(r);
   $('prom').textContent = r.dias + ' días con venta · promedio ' + fmt(r.promedio) + ' por día';
   $('cMeta').hidden = !(r.metaDia > 0);
   if (r.metaDia > 0) {
@@ -819,6 +834,23 @@ $('bPdf').addEventListener('click', function(){
     .informePDF(MES);
 });
 iniciar(cargar);
+// ---------- Este mes vs mes pasado (hasta el mismo día) ----------
+function pintarVs(r){
+  var A = r.ant; $('vsCarta').hidden = !A;
+  if (!A) return;
+  var mes = (r.titulo || '').split(' ')[0], u = r.ventas * 0.15, ua = A.ventas * 0.15;
+  // bueno = true si subir es bueno (ventas); false si subir es malo (compras, gastos)
+  var fila = function(t, cls, v, a, bueno){
+    var d = a ? (v - a) / a : 0, sube = d >= 0, ok = bueno ? sube : !sube;
+    return '<div class="c ' + cls + '">' + t + '</div><div class="n ' + cls + '">' + fmt(v) + (a ? '<span class="d ' + (ok ? 'up' : 'down') + '">' + (sube ? '▲ ' : '▼ ') + Math.abs(Math.round(d * 100)) + '%</span>' : '') + '</div><div class="a">' + fmt(a) + '</div>';
+  };
+  $('vsTit').textContent = '🗓️ ' + mes + ' vs ' + r.antTitulo;
+  $('vs').innerHTML = '<div class="h"></div><div class="h">' + mes + '</div><div class="h">' + r.antTitulo + '</div>' +
+    fila('💵 Ventas', 'cv', r.ventas, A.ventas, true) + fila('🛒 Compras', 'cc', r.mercancia, A.compras, false) + fila('🧾 Gastos', 'cg', r.gastos, A.gastos, false) +
+    fila('📲 QR', '', r.qr, A.qr, true) + fila('💰 Utilidad 15%', 'cv', u, ua, true);
+  $('vsNota').textContent = r.mesActual ? 'Comparado hasta el mismo día (' + new Date().getDate() + ') del mes pasado.' : 'Mes completo contra mes completo.';
+}
+
 // ---------- Mes a mes: ventas vs compras ----------
 var ANIOS = [], ANIO_SEL = 0;
 function pintarAnio(i){
