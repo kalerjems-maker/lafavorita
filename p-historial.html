@@ -91,6 +91,9 @@
 </script>
 
 <style>
+  .prom{margin:10px 0 4px;background:#1D4E89;color:#fff;border-radius:14px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .prom small{font-weight:800;letter-spacing:.5px;font-size:13px;opacity:.9}
+  .prom b{font-size:28px;font-weight:800;color:#FFD54F}
   :root{--verde:#0F3D33;--verde2:#16594a;--oro:#C9A54B;--oro-s:#F6EDD5;--tinta:#1d2925;--suave:#6b7a74;--fondo:#F3F1EA;--linea:#E4DFD2;--rojo:#9B2C22;--rojo-s:#FBE9E6;--ok:#14774E}
   *{box-sizing:border-box}
   body{margin:0;background:var(--fondo);color:var(--tinta);font-family:"Segoe UI",Roboto,Arial,sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
@@ -354,6 +357,7 @@ function pedirClave(fn, aviso){
       <div class="etq">Total vendido</div>
       <div class="grande cv" id="tVentas">$0</div>
       <div class="sub" id="tDias"></div>
+      <div class="prom" id="tProm" hidden><small>📊 PROMEDIO<br>POR DÍA</small><b id="tPromV">$0</b></div>
       <div class="res">
         <div><small>COMPRAS</small><b class="cc" id="tCompras">$0</b></div>
         <div><small>GASTOS</small><b class="cg" id="tGastos">$0</b></div>
@@ -402,7 +406,8 @@ function pintar(r){
   D = r; $('cargando').hidden = true; $('todo').hidden = false;
   $('titulo').textContent = r.titulo;
   $('tVentas').textContent = fmt(r.ventas);
-  $('tDias').textContent = r.dias.length ? (r.dias.length === 1 ? '1 día' : r.dias.length + ' días') + ' · promedio por día ' + fmt(r.promedio) : 'Todavía no hay días cerrados este mes';
+  $('tDias').textContent = r.dias.length ? (r.dias.length === 1 ? '1 día vendido' : r.dias.length + ' días vendidos') : 'Todavía no hay días cerrados este mes';
+  $('tProm').hidden = !r.dias.length; $('tPromV').textContent = fmt(r.promedio);
   $('tCompras').textContent = fmt(r.compras);
   $('tGastos').textContent = fmt(r.gastos);
   $('tQueda').textContent = fmt(r.utilidad); $('tQueda').className = r.utilidad < 0 ? 'neg' : 'pos';
