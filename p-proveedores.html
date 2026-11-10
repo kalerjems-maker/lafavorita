@@ -12,8 +12,8 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
-  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
-  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
+  var RAPIDO = ['panel', 'historial', 'gastosFijos', 'inversion'];   // se muestra lo guardado al instante y luego se actualiza
+  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin','inversion'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
   function guardar(k, v){
@@ -518,7 +518,7 @@ function pintar(r){
           (g.nota ? ' · ' + esc(g.nota) : '') + '</div></div><div class="v">' + fmt(g.valor) + '</div></div>' +
           '<div class="acc"><button class="cancel borrp" data-i="' + r.pagos.indexOf(g) + '">🗑️ Borrar este pago</button></div></div>';
       }).join('') + '<div class="dia"><span>Total pagado</span><span>' + fmt(r.pagosTotal) + '</span></div>' +
-        '<div class="dia" style="font-size:17px;color:#555"><span>De eso, salió de la caja</span><span>' + fmt(r.pagosCaja) + '</span></div>'
+        '<div class="dia" style="font-size:17px;color:#555"><span>De eso, salió de la caja</span><span>' + fmt(r.pagosCaja) + '</span></div>' + porProv(r.pagos)
     : '<div class="vacio">No hay pagos este día</div>';
   // Borrar un pago mal anotado (hay que tocar dos veces)
   document.querySelectorAll('#pagos .borrp').forEach(function(b){
@@ -556,6 +556,15 @@ function pedirCancelar(b, id){
   }
 }
 
+// Suma por proveedor (cuando un proveedor trae varias facturas el mismo día)
+function porProv(pagos){
+  var t = {}, n = {};
+  pagos.forEach(function(g){ var k = String(g.quien || '').toUpperCase(); t[k] = (t[k] || 0) + Number(g.valor || 0); n[k] = (n[k] || 0) + 1; });
+  var ks = Object.keys(t).sort(function(a, b){ return t[b] - t[a]; });
+  if (ks.length < 2 && !ks.some(function(k){ return n[k] > 1; })) return '';
+  return '<div class="card" style="margin-top:10px"><div style="font-weight:800;margin-bottom:6px">🧾 Suma por proveedor</div>' +
+    ks.map(function(k){ return '<div class="dia" style="font-size:17px"><span>' + esc(k) + (n[k] > 1 ? ' <small style="color:#777">(' + n[k] + ' facturas)</small>' : '') + '</span><span>' + fmt(t[k]) + '</span></div>'; }).join('') + '</div>';
+}
 function cargar(){
   if ($('verFecha')) $('verFecha').value = $('gFecha').value;
   srv().withSuccessHandler(pintar)

@@ -12,8 +12,8 @@
 <script>
 // Puente: estas pantallas viven guardadas en el celular y hablan con Google por internet
 (function(){
-  var RAPIDO = ['panel', 'historial', 'gastosFijos'];   // se muestra lo guardado al instante y luego se actualiza
-  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin'];
+  var RAPIDO = ['panel', 'historial', 'gastosFijos', 'inversion'];   // se muestra lo guardado al instante y luego se actualiza
+  var LECT = ['gastosFijos','historial','buscarQR','inicio','leerDia','cuentas','proveedores','panel','precios','catalogo','catalogoAdmin','inversion'];
   function clave(a){ return 'favorita_c_' + a[1] + '_' + JSON.stringify(a[2] || []); }
   function leer(k){ try { var x = localStorage.getItem(k); return x ? JSON.parse(x) : undefined; } catch (e) { return undefined; } }
   function guardar(k, v){
@@ -91,6 +91,11 @@
 </script>
 
 <style>
+  .invBarra{height:12px;border-radius:8px;background:#E6EEF8;overflow:hidden;margin:6px 0 10px}
+  .invBarra div{height:100%;background:linear-gradient(90deg,#1D4E89,#2E7DD7);width:0}
+  .invQueda{background:#1D4E89;color:#fff;border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+  .invQueda small{font-weight:800;letter-spacing:.5px;font-size:13px;opacity:.9}
+  .invQueda b{font-size:26px;font-weight:800;color:#FFD54F}
   :root{--verde:#0F3D33;--verde2:#16594a;--oro:#C9A54B;--oro-s:#F6EDD5;--tinta:#1d2925;--suave:#6b7a74;--fondo:#F3F1EA;--carta:#ffffff;--linea:#E4DFD2;--rojo:#9B2C22;--rojo-s:#FBE9E6;--azul:#1D4E89;--azul-s:#E6EEF8;--ok:#14774E}
   *{box-sizing:border-box}
   body{margin:0;background:var(--fondo);color:var(--tinta);font-family:"Segoe UI",Roboto,Arial,sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
@@ -491,6 +496,17 @@ function pedirClave(fn, aviso){
       </div>
     </div>
 
+    <div class="carta inv" id="invCarta" hidden>
+      <div class="etq" style="color:#1D4E89">Solo lo ve Jems</div>
+      <h2 style="margin-top:4px">💼 Su inversión en la tienda</h2>
+      <div class="fila"><span>Usted puso</span><b id="invPuso">$0</b></div>
+      <div class="fila"><span>Ya ha recuperado</span><b class="cv" id="invRec">$0</b></div>
+      <div class="invBarra"><div id="invBar"></div></div>
+      <div class="invQueda"><small>LE QUEDA POR SACAR</small><b id="invQueda">$0</b></div>
+      <div class="fila"><span id="invMesTxt">Este mes</span><b id="invMes">$0</b></div>
+      <div class="ayuda" id="invNota" style="margin-top:6px"></div>
+    </div>
+
     <div class="carta">
       <h2>Ganancia real del mes</h2>
       <div class="fila"><span>Ventas</span><b class="cv" id="gVentas">$0</b></div>
@@ -613,6 +629,7 @@ function nombreDia(f){
 function pintar(r){
   if (r && r.mes && r.mes !== MES) return;   // llegó tarde un mes que ya no se está viendo
   precargar();
+  if (!window.INV_OK) { window.INV_OK = 1; cargarInversion(); }
   $('cargando').hidden = true; $('todo').hidden = false;
   $('titulo').textContent = r.titulo;
   $('sig').disabled = MES >= ACTUAL;
@@ -773,6 +790,21 @@ function precargar(){
   var p = MES.split('-'), d = new Date(+p[0], +p[1] - 2, 1), m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   if (PRECARGADO[m]) return; PRECARGADO[m] = 1;
   setTimeout(function(){ srv().withSuccessHandler(function(){}).withFailureHandler(function(){}).panel(m); }, 1500);
+}
+function cargarInversion(){
+  if (!(ROL && ROL.rol === 'dueno')) { $('invCarta').hidden = true; return; }
+  srv().withSuccessHandler(function(x){
+    if (!x) return;
+    $('invCarta').hidden = false;
+    $('invPuso').textContent = fmt(x.invertido);
+    $('invRec').textContent = fmt(x.recuperado);
+    $('invBar').style.width = Math.max(0, Math.min(100, x.invertido ? x.recuperado / x.invertido * 100 : 0)) + '%';
+    $('invQueda').textContent = fmt(Math.max(0, x.queda));
+    var v = x.esteMes || 0;
+    $('invMesTxt').textContent = v >= 0 ? 'Este mes va recuperando' : 'Este mes dejó en la tienda';
+    $('invMes').textContent = fmt(Math.abs(v)); $('invMes').className = v >= 0 ? 'cv' : 'cc';
+    $('invNota').textContent = 'Hasta octubre de 2026 recuperó ' + fmt(x.antes) + ' (cuenta de los cuadernos). Desde noviembre la app lo suma sola: lo que usted y Raúl sacan por encima de la utilidad a repartir sale de su inversión.';
+  }).withFailureHandler(function(){}).inversion();
 }
 function cargar(){
   $('titulo').textContent = 'Cargando...';
