@@ -182,13 +182,33 @@
   [hidden]{display:none!important}
   #cm-cola{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:998;background:#1b1b1b;color:#fff;font:bold 15px Arial,sans-serif;padding:10px 16px;border-radius:24px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:92vw;text-align:center}
   #cm-cola.sin{background:#9B2C22}
+  #cm-gate .cm-logo{width:min(260px,72vw);height:auto;margin-bottom:14px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))}
+  /* Avisos tipo tarjeta (abajo, se van solos) */
+  #cm-toast{position:fixed;left:50%;bottom:22px;z-index:1000;transform:translate(-50%,30px);opacity:0;pointer-events:none;width:min(92vw,460px);box-sizing:border-box;
+    background:#14231F;color:#fff;font:700 17px/1.35 Arial,sans-serif;padding:14px 16px 14px 52px;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.28);transition:transform .28s cubic-bezier(.2,.9,.3,1.2),opacity .2s}
+  #cm-toast.on{transform:translate(-50%,0);opacity:1}
+  #cm-toast::before{content:'✓';position:absolute;left:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:#2E9E6A;display:flex;align-items:center;justify-content:center;font-size:17px}
+  #cm-toast.err{background:#5B1A14}#cm-toast.err::before{content:'!';background:#E5534B}
+  #msg.tq{display:none!important}
+  /* Pantallas de carga: la forma de la pantalla mientras llegan los datos */
+  .cm-esq{display:flex;flex-direction:column;gap:12px}
+  .cm-esq i{display:block;border-radius:16px;height:var(--h,86px);background:linear-gradient(90deg,#e9e5da 0%,#f6f3ec 40%,#e9e5da 80%);background-size:300% 100%;animation:cmBrillo 1.3s ease-in-out infinite}
+  .cm-esq i.l{height:18px;width:60%;border-radius:8px}
+  .cm-esqT{display:inline-block;min-width:90px;height:.9em;border-radius:8px;vertical-align:middle;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,.3),rgba(255,255,255,.12));background-size:300% 100%;animation:cmBrillo 1.3s ease-in-out infinite}
+  @keyframes cmBrillo{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  /* Paso suave entre pantallas */
+  body{animation:cmEntra .25s ease-out}
+  @keyframes cmEntra{from{opacity:.35}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){body,.cm-esq i,#cm-toast{animation:none!important;transition:none!important}}
 </style>
+<div id="cm-toast" role="status" aria-live="polite"></div>
 <div id="cm-cola" hidden></div>
 <div class="cm-barra" id="cm-barra" hidden>
   <a class="cm-volver" id="cm-volver" href="./" target="_top">⬅ Inicio</a>
   <span class="cm-quien" id="cm-quien"></span>
 </div>
 <div id="cm-gate" hidden>
+  <img class="cm-logo" src="https://kalerjems-maker.github.io/lafavorita/logo-tienda.png" alt="Tienda La Favorita" onerror="this.remove()">
   <div class="m">TIENDA LA FAVORITA</div>
   <h2>Escriba su clave</h2>
   <div id="cm-puntos"><i></i><i></i><i></i><i></i></div>
@@ -247,6 +267,29 @@ function msgAbono(nombre, valor, medio, saldo, fecha){
     (saldo > 0 ? '💰 Le queda pendiente: *$' + sep(saldo) + '*' : '🎉 ¡Quedó a paz y salvo! Su cuenta está en cero.') +
     '\n\n' + GRACIAS_WA;
 }
+// Vibración suave: un toque al guardar, dos al haber error
+function vibrar(c){ try { if (navigator.vibrate) navigator.vibrate(c === 'err' ? [60, 50, 60] : 25); } catch (e) {} }
+var TOAST_T = 0;
+function tostada(t, c){
+  if (!t) return;
+  var d = cmG('cm-toast'); if (!d) return;
+  d.textContent = String(t).replace(/^✅\s*/, ''); d.className = (c === 'err' ? 'err' : '');
+  void d.offsetWidth; d.classList.add('on'); vibrar(c);
+  clearTimeout(TOAST_T); TOAST_T = setTimeout(function(){ d.classList.remove('on'); }, c === 'err' ? 5000 : 3200);
+}
+// Números que suben: cuentan desde el valor anterior hasta el nuevo (como las apps de bancos)
+function contar(el, v, pre){
+  if (typeof el === 'string') el = cmG(el); if (!el) return;
+  v = Math.round(v || 0); pre = pre || '';
+  var desde = el._v != null ? el._v : 0; el._v = v;
+  var quieto = desde === v || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (quieto) { el.textContent = pre + fmt(v); return; }
+  var t0 = 0, dur = 700, id = (el._a = (el._a || 0) + 1);
+  function paso(t){ if (el._a !== id) return; if (!t0) t0 = t; var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = pre + fmt(Math.round(desde + (v - desde) * e)); if (k < 1) requestAnimationFrame(paso); }
+  requestAnimationFrame(paso);
+}
+function esqueleto(n, alto){ var h = '<div class="cm-esq">'; for (var i = 0; i < (n || 3); i++) h += '<i style="--h:' + (alto || 86) + 'px"></i>'; return h + '</div>'; }
 function guardarPin(p){ PIN = p; try { localStorage.setItem('favorita_pin', p); } catch (e) {} }
 function salir(){ try { localStorage.removeItem('favorita_pin'); localStorage.removeItem('favorita_rol'); localStorage.removeItem('favorita_inicio'); } catch (e) {} PIN = ''; }
 // ----- Sin internet: lo que se guarda queda en el celular y se manda solo cuando vuelve la señal -----
@@ -443,7 +486,7 @@ function num(x){ return typeof x === 'number' ? x : (Number(String(x || '').repl
 function sep(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
 function fmt(n){ return (n < 0 ? '-$' : '$') + sep(Math.abs(n)); }
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-function msg(t, c){ $('msg').textContent = t; $('msg').className = c || ''; }
+function msg(t, c){ var f = c === 'ok' || c === 'err'; $('msg').textContent = t; $('msg').className = (c || '') + (c === 'ok' ? ' tq' : ''); if (f) tostada(t, c); }
 function fechaBonita(f){ var p = f.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
 function hoy(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function waLink(tel, texto){

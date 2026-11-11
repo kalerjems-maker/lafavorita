@@ -12,7 +12,21 @@ function nueva(viejo, r) {
   var a = viejo.headers.get('etag') || viejo.headers.get('last-modified'), b = r.headers.get('etag') || r.headers.get('last-modified');
   return !!(a && b && a !== b);
 }
-var CAMBIO = 0;
+var CAMBIO = 0, ULT_AVISO = 0, REFRESCANDO = null;
+var PANTALLAS = ARCHIVOS.filter(function (u) { return /\.html$|\/$/.test(u); });
+// Cuando una pantalla cambió en GitHub se traen TODAS de una vez y se avisa una sola vez
+// (antes se avisaba en cada pantalla que uno abría, por eso el aviso azul salía varias veces)
+function refrescarTodo(c) {
+  if (REFRESCANDO) return REFRESCANDO;
+  REFRESCANDO = Promise.all(PANTALLAS.map(function (u) {
+    var url = new URL(u, self.location.href);
+    return fetch(url.href, { cache: 'no-cache' }).then(function (r) { if (r.ok) return c.put(url.origin + url.pathname, r); }).catch(function () {});
+  })).then(function () {
+    REFRESCANDO = null;
+    if (Date.now() - ULT_AVISO > 120000) { ULT_AVISO = CAMBIO = Date.now(); avisar(); }
+  });
+  return REFRESCANDO;
+}
 // La pantalla pregunta al abrir: "¿cambió algo?" (el aviso directo puede llegar antes de que la pantalla esté lista)
 self.addEventListener('message', function (e) {
   if (e.data === 'hay-nueva' && CAMBIO && Date.now() - CAMBIO < 600000 && e.source) { CAMBIO = 0; e.source.postMessage('nueva-version'); }  // se avisa una sola vez
@@ -29,8 +43,8 @@ self.addEventListener('fetch', function (e) {
       var red = fetch(fuentes ? e.request : u.href, fuentes ? undefined : { cache: 'no-cache' }).then(function (r) {
         if (r && (r.ok || r.type === 'opaque')) {
           // Si la pantalla cambió en GitHub, se avisa para que el usuario toque "Actualizar"
-          if (g && /\.html$|\/$/.test(u.pathname) && nueva(g, r)) { CAMBIO = Date.now(); avisar(); }
-          c.put(fuentes ? e.request : u.origin + u.pathname, r.clone());
+          var cambio = g && /\.html$|\/$/.test(u.pathname) && nueva(g, r);
+          c.put(fuentes ? e.request : u.origin + u.pathname, r.clone()).then(function () { if (cambio) refrescarTodo(c); });
         }
         return r;
       });

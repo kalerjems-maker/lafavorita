@@ -126,6 +126,9 @@
   .led label{margin-top:8px}
   .lsug{font-size:16px;color:#7a5d12;margin-top:8px}
   .lsug button{width:auto;display:inline-block;margin:6px 0 0;padding:8px 14px;font-size:16px;background:#fff3cd;color:#7a5d12;border:2px solid #e2c46b;border-radius:10px}
+  .lcmp{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px;font-size:14px;color:#5b6b78}
+  .lcmp .lmas,.lcmp .lmenos,.lcmp .ligual{font-weight:800;border-radius:8px;padding:1px 7px}
+  .lcmp .lmas{background:#EAF1FA;color:#1D4E89}.lcmp .lmenos{background:#FDE7E7;color:#B3261E}.lcmp .ligual{background:#E6F4EC;color:#14774E}
   .lalerta{background:#FDE7E7;color:#B3261E;border-radius:10px;padding:6px 10px;font-size:14px;font-weight:700;margin-top:6px}
   .lver{background:transparent;color:#5b6b78;border:0;text-decoration:underline;font-size:16px;margin-top:6px}
   body{font-family:Arial,sans-serif;background:#f4f1e8;margin:0;padding:16px 16px 40px;color:#1b1b1b;font-size:20px}
@@ -201,8 +204,13 @@
     body{background:#fff !important}
     body > *:not(#imp){display:none !important}
     #imp{display:block;font-family:Arial,sans-serif;color:#000}
-    #imp h1{font-size:20px;margin:0 0 4px}#imp h2{font-size:15px;margin:12px 0 4px;border-bottom:2px solid #000}
-    #imp table{width:100%;border-collapse:collapse;font-size:13px}#imp td{border-bottom:1px solid #ccc;padding:3px 4px}#imp td.v{text-align:right;font-weight:700;white-space:nowrap}
+    @page{margin:12mm}
+    #imp .impH{display:flex;align-items:center;justify-content:space-between;gap:16px;background:#0F3D33;border-bottom:4px solid #C9A54B;border-radius:10px;padding:12px 16px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #imp .impH img{height:62px}#imp .impH b{display:block;color:#E3C46B;font-size:18px;letter-spacing:2px;text-align:right}#imp .impH span{display:block;color:#fff;font-size:12px;text-align:right}
+    #imp .impG{columns:2;column-gap:22px;margin-top:10px}#imp section{break-inside:avoid;margin-bottom:10px}
+    #imp h2{font-size:14px;margin:6px 0 4px;padding:4px 8px;background:#E6F4EC;color:#0F3D33;border-radius:6px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #imp table{width:100%;border-collapse:collapse;font-size:12px}#imp td{border-bottom:1px dotted #bbb;padding:3px 4px}#imp td.v{text-align:right;font-weight:800;white-space:nowrap;color:#0F3D33}
+    #imp .impP{margin-top:12px;border-top:2px solid #C9A54B;padding-top:6px;font-size:10px;color:#666;text-align:center}
   }
 </style>
 </head>
@@ -227,13 +235,33 @@
   [hidden]{display:none!important}
   #cm-cola{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:998;background:#1b1b1b;color:#fff;font:bold 15px Arial,sans-serif;padding:10px 16px;border-radius:24px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:92vw;text-align:center}
   #cm-cola.sin{background:#9B2C22}
+  #cm-gate .cm-logo{width:min(260px,72vw);height:auto;margin-bottom:14px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))}
+  /* Avisos tipo tarjeta (abajo, se van solos) */
+  #cm-toast{position:fixed;left:50%;bottom:22px;z-index:1000;transform:translate(-50%,30px);opacity:0;pointer-events:none;width:min(92vw,460px);box-sizing:border-box;
+    background:#14231F;color:#fff;font:700 17px/1.35 Arial,sans-serif;padding:14px 16px 14px 52px;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.28);transition:transform .28s cubic-bezier(.2,.9,.3,1.2),opacity .2s}
+  #cm-toast.on{transform:translate(-50%,0);opacity:1}
+  #cm-toast::before{content:'✓';position:absolute;left:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:#2E9E6A;display:flex;align-items:center;justify-content:center;font-size:17px}
+  #cm-toast.err{background:#5B1A14}#cm-toast.err::before{content:'!';background:#E5534B}
+  #msg.tq{display:none!important}
+  /* Pantallas de carga: la forma de la pantalla mientras llegan los datos */
+  .cm-esq{display:flex;flex-direction:column;gap:12px}
+  .cm-esq i{display:block;border-radius:16px;height:var(--h,86px);background:linear-gradient(90deg,#e9e5da 0%,#f6f3ec 40%,#e9e5da 80%);background-size:300% 100%;animation:cmBrillo 1.3s ease-in-out infinite}
+  .cm-esq i.l{height:18px;width:60%;border-radius:8px}
+  .cm-esqT{display:inline-block;min-width:90px;height:.9em;border-radius:8px;vertical-align:middle;background:linear-gradient(90deg,rgba(255,255,255,.12),rgba(255,255,255,.3),rgba(255,255,255,.12));background-size:300% 100%;animation:cmBrillo 1.3s ease-in-out infinite}
+  @keyframes cmBrillo{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  /* Paso suave entre pantallas */
+  body{animation:cmEntra .25s ease-out}
+  @keyframes cmEntra{from{opacity:.35}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){body,.cm-esq i,#cm-toast{animation:none!important;transition:none!important}}
 </style>
+<div id="cm-toast" role="status" aria-live="polite"></div>
 <div id="cm-cola" hidden></div>
 <div class="cm-barra" id="cm-barra" hidden>
   <a class="cm-volver" id="cm-volver" href="./" target="_top">⬅ Inicio</a>
   <span class="cm-quien" id="cm-quien"></span>
 </div>
 <div id="cm-gate" hidden>
+  <img class="cm-logo" src="https://kalerjems-maker.github.io/lafavorita/logo-tienda.png" alt="Tienda La Favorita" onerror="this.remove()">
   <div class="m">TIENDA LA FAVORITA</div>
   <h2>Escriba su clave</h2>
   <div id="cm-puntos"><i></i><i></i><i></i><i></i></div>
@@ -292,6 +320,29 @@ function msgAbono(nombre, valor, medio, saldo, fecha){
     (saldo > 0 ? '💰 Le queda pendiente: *$' + sep(saldo) + '*' : '🎉 ¡Quedó a paz y salvo! Su cuenta está en cero.') +
     '\n\n' + GRACIAS_WA;
 }
+// Vibración suave: un toque al guardar, dos al haber error
+function vibrar(c){ try { if (navigator.vibrate) navigator.vibrate(c === 'err' ? [60, 50, 60] : 25); } catch (e) {} }
+var TOAST_T = 0;
+function tostada(t, c){
+  if (!t) return;
+  var d = cmG('cm-toast'); if (!d) return;
+  d.textContent = String(t).replace(/^✅\s*/, ''); d.className = (c === 'err' ? 'err' : '');
+  void d.offsetWidth; d.classList.add('on'); vibrar(c);
+  clearTimeout(TOAST_T); TOAST_T = setTimeout(function(){ d.classList.remove('on'); }, c === 'err' ? 5000 : 3200);
+}
+// Números que suben: cuentan desde el valor anterior hasta el nuevo (como las apps de bancos)
+function contar(el, v, pre){
+  if (typeof el === 'string') el = cmG(el); if (!el) return;
+  v = Math.round(v || 0); pre = pre || '';
+  var desde = el._v != null ? el._v : 0; el._v = v;
+  var quieto = desde === v || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (quieto) { el.textContent = pre + fmt(v); return; }
+  var t0 = 0, dur = 700, id = (el._a = (el._a || 0) + 1);
+  function paso(t){ if (el._a !== id) return; if (!t0) t0 = t; var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = pre + fmt(Math.round(desde + (v - desde) * e)); if (k < 1) requestAnimationFrame(paso); }
+  requestAnimationFrame(paso);
+}
+function esqueleto(n, alto){ var h = '<div class="cm-esq">'; for (var i = 0; i < (n || 3); i++) h += '<i style="--h:' + (alto || 86) + 'px"></i>'; return h + '</div>'; }
 function guardarPin(p){ PIN = p; try { localStorage.setItem('favorita_pin', p); } catch (e) {} }
 function salir(){ try { localStorage.removeItem('favorita_pin'); localStorage.removeItem('favorita_rol'); localStorage.removeItem('favorita_inicio'); } catch (e) {} PIN = ''; }
 // ----- Sin internet: lo que se guarda queda en el celular y se manda solo cuando vuelve la señal -----
@@ -516,7 +567,7 @@ function num(x){ return typeof x === 'number' ? x : (Number(String(x || '').repl
 function sep(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
 function fmt(n){ return (n < 0 ? '-$' : '$') + sep(Math.abs(n)); }
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-function msg(t, c){ $('msg').textContent = t; $('msg').className = c || ''; }
+function msg(t, c){ var f = c === 'ok' || c === 'err'; $('msg').textContent = t; $('msg').className = (c || '') + (c === 'ok' ? ' tq' : ''); if (f) tostada(t, c); }
 function hoy(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function fCorta(f){ var p = f.split('-'); return p[2] + '/' + p[1]; }
 function sinTilde(s){ return String(s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
@@ -557,8 +608,13 @@ function subioP(p){ return (D.revisar || []).some(function(x){ return x.subio &&
 function filaLista(p, idx){
   var v = p.venta, cu = costoUnit(p), k = esc(p.n + '|' + p.u), h = '';
   var info = cu ? 'Compra: ' + fmt(cu) + (unidP(p) > 1 ? ' c/u' : '') : 'Sin costo';
-  if (v && cu) { var mk = (v.precio - cu) / cu; info += ' · <span class="mg ' + claseMg(mk, pctDe(cu, p.cat)) + '">' + (mk >= 0 ? '+' : '') + Math.round(mk * 100) + '%</span>'; }
   info = ((gruposP()[p.cat] || {}).ico || '') + ' ' + info;
+  if (v && cu) {   // a qué % se vende de verdad contra el % sugerido del grupo
+    var mk = (v.precio - cu) / cu, pg = pctDe(cu, p.cat), sg = sugerido(cu, p.cat), df = v.precio - sg;
+    info += '<div class="lcmp"><span>Se vende a <b class="mg ' + claseMg(mk, pg) + '">' + (mk >= 0 ? '+' : '') + Math.round(mk * 100) + '%</b></span>' +
+      '<span>Sugerido +' + Math.round(pg * 100) + '%: <b>' + fmt(sg) + '</b></span>' +
+      (df > 0 ? '<span class="lmas">▲ ' + fmt(df) + ' más caro</span>' : df < 0 ? '<span class="lmenos">▼ ' + fmt(-df) + ' más barato</span>' : '<span class="ligual">✓ Igual al sugerido</span>') + '</div>';
+  }
   h += '<div class="lp' + (LAB[k] ? ' abierto' : '') + '" data-k="' + k + '"><div class="lpi"><span class="ln">' + esc(p.n) + '</span>' + (p.u ? '<span class="lu">' + esc(p.u) + '</span>' : '') + '<div class="lc">' + info + '</div>' +
        (subioP(p) ? '<div class="lalerta">📈 Subió el costo' + (v && v.sugerido > v.precio ? ' <button type="button" class="lsub" data-s="' + v.sugerido + '">Usar ' + fmt(v.sugerido) + '</button>' : ', revise el precio') + '</div>' : '') + '</div>' +
        '<div class="lv' + (v ? '' : ' sin') + '"><b>' + (v ? fmt(v.precio) : 'Sin precio') + '</b><small>' + (v ? (unidP(p) > 1 ? 'cada unidad' : 'precio venta') : (cu ? 'sugerido ' + fmt(sugerido(cu, p.cat)) + (unidP(p) > 1 ? ' c/u' : '') : '')) + '</small></div>' +
@@ -631,10 +687,11 @@ $('cCop').addEventListener('click', function(){
 });
 $('cImp').addEventListener('click', function(){
   var d = new Date();
-  $('imp').innerHTML = '<h1>🏪 Tienda La Favorita · Lista de precios</h1><div>' + d.toLocaleDateString('es-CO') + '</div>' + listaVenta().map(function(x){
-    return '<h2>' + x.g.ico + ' ' + esc(x.g.n) + '</h2><table>' + x.ps.map(function(p){ return '<tr><td>' + esc(nomVenta(p)) + '</td><td class="v">' + fmt(p.venta.precio) + '</td></tr>'; }).join('') + '</table>';
-  }).join('');
-  window.print();
+  $('imp').innerHTML = '<div class="impH"><img src="https://kalerjems-maker.github.io/lafavorita/logo-tienda.png" alt=""><div><b>LISTA DE PRECIOS</b><span>' + d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) + '</span></div></div>' + '<div class="impG">' + listaVenta().map(function(x){
+    return '<section><h2>' + x.g.ico + ' ' + esc(x.g.n) + '</h2><table>' + x.ps.map(function(p){ return '<tr><td>' + esc(nomVenta(p)) + '</td><td class="v">' + fmt(p.venta.precio) + '</td></tr>'; }).join('') + '</table></section>';
+  }).join('') + '</div><div class="impP">Tienda La Favorita del Hogar · Pueblo Nuevo, Córdoba · Precios sujetos a cambio</div>';
+  var im = $('imp').querySelector('img'), hecho = false, imprimir = function(){ if (!hecho) { hecho = true; window.print(); } };
+  if (im.complete) imprimir(); else { im.onload = im.onerror = imprimir; setTimeout(imprimir, 2000); }
 });
 $('lAuto').addEventListener('click', function(){
   var b = this;
