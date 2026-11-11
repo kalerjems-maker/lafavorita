@@ -543,7 +543,7 @@ chips('aPago', function(v){ pago = v; });
 // ---------- Lista de precios ----------
 var LAB = {}, SOLO = false;   // tarjeta abierta para editar
 // Cuántas unidades trae la presentación: "CAJA X 24" → 24, "BULTO X 50 KG" → 100 libras
-function unidDe(u){ var t = String(u || '').toUpperCase(), m = t.match(/X\s*(\d+)\s*(KG|KILO)?/) || t.match(/(\d+)\s*(UND|UNID|UNIDADES|U\b)/); if (!m) return 1; var n = Number(m[1]) || 1; return m[2] && /KG|KILO/.test(m[2]) ? n * 2 : n; }
+function unidDe(u){ var t = String(u || '').toUpperCase(), m = t.match(/X\s*(\d+)(?!\d)(?!\s*(?:G|GR|GRS|GRAMOS|ML|L|LT|LTS|LITRO|LITROS|CC|OZ|CM|MT|M)\b)\s*(KG|KILO)?/) || t.match(/(\d+)\s*(UND|UNID|UNIDADES|U\b)/); if (!m) return 1; var n = Number(m[1]) || 1; return m[2] && /KG|KILO/.test(m[2]) ? n * 2 : n; }
 function unidP(p){ return (p.venta && p.venta.unid) || unidDe(p.u); }
 function costoUnit(p){ return p.ult ? p.ult.precio / unidP(p) : 0; }
 function lsugHtml(p, un){ var cu = p.ult.precio / (un || 1); return 'Le costó ' + fmt(p.ult.precio) + ' en ' + esc(p.ult.prov) + ' (' + fCorta(p.ult.fecha) + ')' + (un > 1 ? '<br>Cada unidad le cuesta <b>' + fmt(cu) + '</b>' : '') + '<br>💡 Costo + ' + Math.round(pctDe(cu, p.cat) * 100) + '%: <button type="button" class="lusar">Usar ' + fmt(sugerido(cu, p.cat)) + '</button>'; }

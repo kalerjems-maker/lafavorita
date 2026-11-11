@@ -816,9 +816,9 @@ function cargarInversion(){
     $('invBar').style.width = Math.max(0, Math.min(100, x.invertido ? x.recuperado / x.invertido * 100 : 0)) + '%';
     $('invQueda').textContent = fmt(Math.max(0, x.queda));
     var v = x.esteMes || 0;
-    $('invMesTxt').textContent = v >= 0 ? 'Este mes va recuperando' : 'Este mes dejó en la tienda';
-    $('invMes').textContent = fmt(Math.abs(v)); $('invMes').className = v >= 0 ? 'cv' : 'cc';
-    $('invNota').textContent = 'Hasta octubre de 2026 recuperó ' + fmt(x.antes) + ' (cuenta de los cuadernos). Desde noviembre la app lo suma sola: lo que usted y Raúl sacan por encima de la utilidad a repartir sale de su inversión.';
+    $('invMesTxt').innerHTML = 'Este mes va <small style="display:block;color:#6b7a74;font-size:13px">Pendiente de liquidar · se suma al cerrar el mes</small>';
+    $('invMes').textContent = (v < 0 ? '−' : '+') + fmt(Math.abs(v)); $('invMes').className = ''; $('invMes').style.color = '#6b7a74';
+    $('invNota').textContent = 'Hasta octubre de 2026 recuperó ' + fmt(x.antes) + ' (cuenta de los cuadernos). Desde noviembre, al cerrar cada mes, la app suma lo que usted y Raúl sacaron por encima de la utilidad a repartir.';
   }).withFailureHandler(function(){}).inversion();
 }
 function cargar(){

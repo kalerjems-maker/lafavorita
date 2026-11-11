@@ -469,7 +469,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 10-nov-2026 comparar meses</div>
+  <div class="version">Versión 10-nov-2026 auditoria</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
@@ -877,7 +877,7 @@ function cargar(silencio){
 var PREC = null;
 try { PREC = JSON.parse(localStorage.getItem('favorita_precios_ini') || 'null'); } catch (e) {}
 function sinTil(t){ return String(t || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-function unidDe(u){ var t = String(u || '').toUpperCase(), m = t.match(/X\s*(\d+)\s*(KG|KILO)?/) || t.match(/(\d+)\s*(UND|UNID|UNIDADES|U\b)/); if (!m) return 1; var n = Number(m[1]) || 1; return m[2] && /KG|KILO/.test(m[2]) ? n * 2 : n; }
+function unidDe(u){ var t = String(u || '').toUpperCase(), m = t.match(/X\s*(\d+)(?!\d)(?!\s*(?:G|GR|GRS|GRAMOS|ML|L|LT|LTS|LITRO|LITROS|CC|OZ|CM|MT|M)\b)\s*(KG|KILO)?/) || t.match(/(\d+)\s*(UND|UNID|UNIDADES|U\b)/); if (!m) return 1; var n = Number(m[1]) || 1; return m[2] && /KG|KILO/.test(m[2]) ? n * 2 : n; }
 function cargarPrecios(){
   if (!ROL || ROL.paginas.indexOf('precios') < 0) return;
   $('bPrecio').hidden = false;
