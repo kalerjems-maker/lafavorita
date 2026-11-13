@@ -347,7 +347,7 @@ function esqueleto(n, alto){ var h = '<div class="cm-esq">'; for (var i = 0; i <
 function guardarPin(p){ PIN = p; try { localStorage.setItem('favorita_pin', p); } catch (e) {} }
 function salir(){ try { localStorage.removeItem('favorita_pin'); localStorage.removeItem('favorita_rol'); localStorage.removeItem('favorita_inicio'); } catch (e) {} PIN = ''; }
 // ----- Sin internet: lo que se guarda queda en el celular y se manda solo cuando vuelve la señal -----
-var COLA_FN = { guardarCuadre: 1, guardarMov: 1, guardarPago: 1 }, ENVIANDO = false, OK_HASTA = 0;
+var COLA_FN = { guardarCuadre: 1, guardarMov: 1, guardarPago: 1, invContar: 1 }, ENVIANDO = false, OK_HASTA = 0;
 function sinRed(e){ return !navigator.onLine || /NetworkError|HTTP 0|network|Failed to fetch|conexi[oó]n/i.test((e && e.message) || ''); }
 function leerCola(){ try { return JSON.parse(localStorage.getItem('favorita_cola') || '[]'); } catch (e) { return []; } }
 function escribirCola(c){ try { localStorage.setItem('favorita_cola', JSON.stringify(c)); } catch (e) {} pintarCola(); }
@@ -512,7 +512,7 @@ function pedirClave(fn, aviso){
   <button type="button" class="bcierre" id="bCierre" onclick="abrirCierre()">Cuadre: cerrar caja del día<small id="bCierreSub">Al final del día, contar la plata</small></button>
 
   <a class="salir" href="./" target="_top" onclick="salir()">🔒 Salir / cambiar de clave</a>
-  <div class="version">Versión 10-nov-2026 premium</div>
+  <div class="version">Versión 12-nov-2026 inventario</div>
 </div>
 
 <!-- ============ SALIÓ PLATA ============ -->
@@ -721,6 +721,7 @@ function pintarMas(){
     ['historial', '📅', 'Historial de ventas', 'Lo vendido cada día del mes'],
     ['fijos', '🧾', 'Gastos fijos', 'Arriendo, luz, agua... y si ya se pagaron'],
     ['panel', '📊', 'Panel de socios', 'Ventas del mes y liquidación'],
+    ['inventario', '📦', 'Inventario', 'Contar la mercancía y saber cuánto vale'],
     ['precios', '🏷️', 'Precios', 'Facturas con foto y comparar'],
     ['catalogo', '🛒', 'Catálogo', 'Fotos y avisos a clientes'],
     ['cuadre', '💵', 'Cuadres pasados', 'Ver o corregir un día'],

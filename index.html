@@ -18,7 +18,7 @@
   var q = location.search || (location.hash.length > 1 ? '?' + location.hash.slice(1) : '');
   var s = new URLSearchParams(q), p = s.get('p') || 'inicio';
   var alias = { fiados: 'cuentas', abonos: 'cuentas', pagos: 'proveedores' };
-  var pags = ['inicio', 'cuadre', 'cuentas', 'proveedores', 'precios', 'catalogo', 'panel', 'historial', 'fijos'];
+  var pags = ['inicio', 'cuadre', 'cuentas', 'proveedores', 'precios', 'catalogo', 'panel', 'historial', 'fijos', 'inventario'];
   if ((p === 'tienda' || p === 'pagar') && window.APP_URL) { location.replace(APP_URL + q); return; }
   p = alias[p] || p;
   if (pags.indexOf(p) < 0) p = 'inicio';

@@ -494,8 +494,8 @@ CAMPOS.forEach(function(c){
 
 function pintar(r){
   base = num(r.base); transf = num(r.transf); pagos = num(r.pagos); compra = num(r.compra); gastos = num(r.gastos);
-  $('info').innerHTML = r.existe
-    ? 'Base (plata de ayer): <b>' + fmt(base) + '</b><br>' +
+  $('info').innerHTML = (r.existe || r.base != null)
+    ? (r.existe ? '' : '<b>Día nuevo:</b> se agrega a la hoja al guardar.<br>') + 'Base (plata de ayer): <b>' + fmt(base) + '</b><br>' +
       'Compras pagadas de la caja: <b class="cc">' + fmt(compra) + '</b><br>' +
       'Facturas y gastos de la caja: <b class="cg">' + fmt(gastos) + '</b><br>' +
       'Transferencias QR del día: <b>' + fmt(transf) + '</b><br>' +

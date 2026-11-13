@@ -1,8 +1,8 @@
 // Guarda todas las pantallas en el celular: abren al instante y también sin internet.
 // Los datos siempre vienen frescos de Google (si no hay señal, se muestran los últimos guardados).
-var CACHE = 'favorita-v7';
+var CACHE = 'favorita-v8';
 var ARCHIVOS = ['./', './index.html', './config.js', './manifest.webmanifest', './icono-192.png', './icono-512.png', './icono-maskable-512.png', './apple-touch-icon.png', './logo-tienda.png',
-  './p-inicio.html', './p-cuadre.html', './p-cuentas.html', './p-proveedores.html', './p-precios.html', './p-catalogo.html', './p-panel.html', './p-historial.html', './p-fijos.html'];
+  './p-inicio.html', './p-cuadre.html', './p-cuentas.html', './p-proveedores.html', './p-precios.html', './p-catalogo.html', './p-panel.html', './p-historial.html', './p-fijos.html', './p-inventario.html'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS.map(function (u) { return new Request(u, { cache: 'reload' }); })); })); self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); })); }));
